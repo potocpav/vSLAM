@@ -2,19 +2,18 @@
 module Feature where
 
 import Data.Matrix
-import Graphics.Gloss
+import Data.Vector hiding ((++), drop)
+import Graphics.Gloss hiding (Vector)
+
+-- Feature has mu and covariance
+-- size of Vector and Matrix are sadly not checked.
+-- mu = <x,y,phi,rho>
+data Feature = Feature {mu :: Vector Float, cov :: Matrix Float}
+instance Show Feature where
+	show f = "Feature" ++ drop 8 (show (mu f)) ++ "\n" ++ show (cov f)
 
 data Point2  = Point2 {x :: Float, y :: Float}
 	deriving (Show)
-
--- | Inverse depth parametrization
--- (cx, cy) .. camera center
--- phi      .. angle of ray
--- id       .. inverse depth
-data Feature4 = Feature4 Point2 Float Float
-	deriving (Show)
-
-type Cov4 = Matrix Float
 
 data Camera2 = Camera2 Point2 Float
 	deriving (Show)
