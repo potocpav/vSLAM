@@ -1,9 +1,8 @@
 
 module Feature where
 
-import Data.Matrix
-import Data.Vector hiding ((++), drop)
-import Graphics.Gloss hiding (Vector)
+import Data.Matrix (Matrix)
+import Data.Vector (Vector, (!), fromList)
 
 -- Feature has mu and covariance
 -- size of Vector and Matrix are sadly not checked.
@@ -18,5 +17,6 @@ data Point2  = Point2 {x :: Float, y :: Float}
 data Camera2 = Camera2 Point2 Float
 	deriving (Show)
 
--- | Display pointcloud corresponding to a feature
-
+-- | Inverse depth to euclidean parametrization conversion
+toXY :: Vector Float -> Vector Float
+toXY v = fromList [(v!0)+sin(v!2)/(v!3), (v!1)+cos(v!2)/(v!3)]

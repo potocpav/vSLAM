@@ -1,6 +1,6 @@
 -- | 
 
-module EKF2D (update) where
+module EKF2D (initialize, update) where
 
 import Feature
 import Data.Matrix hiding (fromList,(!))
@@ -66,3 +66,11 @@ update (f@(Feature mu cov)) cam (phi, var) = let
 	
 	-- todo: update state estimate
 	in Feature (getCol 1 $ colVector mu + k * fromLists [[y]]) ((identity 4 - k*p)*cov')
+
+-- | Initialize feature from one measurement. Tuple contains mean and variance.
+initialize :: Camera2 -> (Float, Float) -> Feature
+initialize (Camera2 pos angle) (phi, varphi) = Feature (fromList [x pos, y pos, angle+atan(phi), rho0]) cov where
+	rho0 = 0.1
+	cov = matrix 4 4 (\(a, b) -> if a /= b then 0 else diag!(a-1))
+	diag = fromList [0, 0, abs ((atan(phi-varphi)-atan(phi+varphi))/2), 0.5] :: Vector Float
+	
