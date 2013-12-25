@@ -15,10 +15,10 @@ h1 c@(Camera2 _ phic) f = r11 phic * hg1 c f + r12 phic * hg2 c f
 h2 c@(Camera2 _ phic) f = r21 phic * hg1 c f + r22 phic * hg2 c f
 
 r11,r12,r21,r22 :: Float-> Float
-r11 phi = cos phi
-r12 phi = sin phi
-r21 phi = -sin phi
-r22 phi = cos phi
+r11 = cos
+r12 a = -sin a
+r21 = sin
+r22 = cos
 
 -- | This it the projection of the Feature into the Camera.
 -- It doesn't care about covariance
@@ -64,8 +64,8 @@ update (f@(Feature mu cov)) cam (phi, var) = let
 	s = getElem 1 1 (p * cov' * transpose p) + var 	-- rezidual covariance (singleton)
 	k = cov' * transpose p * fromLists [[(1/s)]] 	-- gain
 	
-	-- todo: update state estimate
 	in Feature (getCol 1 $ colVector mu + k * fromLists [[y]]) ((identity 4 - k*p)*cov')
+
 
 -- | Initialize feature from one measurement. Tuple contains mean and variance.
 initialize :: Camera2 -> (Float, Float) -> Feature
