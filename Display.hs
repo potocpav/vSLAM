@@ -7,15 +7,15 @@ import EKF2D
 import Data.Matrix hiding (fromList, (!), trace)
 import Data.Vector hiding ((++), drop, take, map, update)
 
-import Graphics.Gloss hiding (Vector)
-import Graphics.Gloss.Interface.Pure.Game hiding (Vector)
+import Graphics.Gloss hiding (Vector,Point)
+import Graphics.Gloss.Interface.Pure.Game hiding (Vector,Point)
 import Data.Random.Normal
 --import Debug.Trace (trace)
 
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
 
-data World = World { landmarks :: [Point], features :: [Feature], camera :: Camera2 }
+data World = World { landmarks :: [Point], features :: [Feature], camera :: Camera }
 
 data State = State 
 		{ view :: View
@@ -45,8 +45,8 @@ drawFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
 
 
 main = do
-	let f1 = initialize (Camera2 (Point2 0 0) 0) (0, 0.05)
-	let f2 = update f1 (Camera2 (Point2 (-1) (0)) 0.1) (-0.0, 0.05)
+	let f1 = initialize (Camera (0, 0) 0) (0, 0.05)
+	let f2 = update f1 (Camera (-1, 0) 0.1) (-0.0, 0.05)
 	print f1
 	print f2
 	
@@ -55,7 +55,7 @@ main = do
 		(World 
 			[(1,1),(-1,0),(-0.5,1.5)]
 			[]
-			(Camera2 (Point2 0 0) 0)
+			(Camera (0, 0) 0)
 			)
 		Nothing
 	play	(InWindow "Draw" (floor width, floor height) (0,0))
@@ -65,8 +65,8 @@ main = do
 dispLandmark :: Point -> Picture
 dispLandmark a = uncurry Translate a landmark
 
-dispCamera :: Camera2 -> Picture
-dispCamera (Camera2 (Point2 x y) phi) = Color (dark green) $ Line 
+dispCamera :: Camera -> Picture
+dispCamera (Camera (x, y) phi) = Color (dark green) $ Line 
 		[(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)] where
 	posPlusPhi phi = let scale=sqrt 2 in 
 		(x+sin(phi)*scale,y+cos(phi)*scale)

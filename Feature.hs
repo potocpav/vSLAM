@@ -11,10 +11,9 @@ data Feature = Feature {mu :: Vector Float, cov :: Matrix Float}
 instance Show Feature where
 	show f = "Feature" ++ drop 8 (show (mu f)) ++ "\n" ++ show (cov f)
 
-data Point2  = Point2 {x :: Float, y :: Float}
-	deriving (Show)
+type Point = (Float, Float)
 
-data Camera2 = Camera2 Point2 Float
+data Camera = Camera Point Float
 	deriving (Show)
 
 -- | Inverse depth to euclidean parametrization conversion
