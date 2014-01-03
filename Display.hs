@@ -15,7 +15,7 @@ import Data.Random.Normal
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
 
-data World = World {landmarks :: [Point]}
+data World = World { landmarks :: [Point], features :: [Feature], camera :: Camera2 }
 
 data State = State 
 		{ view :: View
@@ -51,13 +51,25 @@ main = do
 	print f2
 	
 	let state = State 
-		(View 0 0 2) 
-		(World [(a,b) | a<-[0,0.2..1], b<-[0,0.2..1]])
+		(View 0 0 4) 
+		(World 
+			[(1,1),(-1,0),(-0.5,1.5)]
+			[]
+			(Camera2 (Point2 0 0) 0)
+			)
 		Nothing
 	play	(InWindow "Draw" (floor width, floor height) (0,0))
 			white 100 state
 			makePicture handleEvent stepWorld
 
+dispLandmark :: Point -> Picture
+dispLandmark a = uncurry Translate a landmark
+
+dispCamera :: Camera2 -> Picture
+dispCamera (Camera2 (Point2 x y) phi) = Color (dark green) $ Line 
+		[(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)] where
+	posPlusPhi phi = let scale=sqrt 2 in 
+		(x+sin(phi)*scale,y+cos(phi)*scale)
 	
 -- | Convert our state to a picture.
 makePicture :: State -> Picture
@@ -66,7 +78,8 @@ makePicture (State view world _) = viewTransform picture where
 	scale = min width height / zoom view
 	
 	picture = pictures $ [Circle 1] 
-		++ (map (\a -> uncurry Translate a landmark) (landmarks world))
+		++ (map dispLandmark (landmarks world))
+		++ [dispCamera (camera world)]
 	
 	
 handleEvent :: Event -> State -> State
@@ -78,11 +91,15 @@ handleEvent event state
 		scale = min width height / zoom in
 			State (View (vx+dx/scale) (vy+dy/scale) zoom) world (Just (x,y))
 
-	| EventKey (MouseButton RightButton) dir _ pt <- event
+	| EventKey (MouseButton MiddleButton) dir _ pt <- event
 	= state {viewMousePos = if dir == Down then Just pt else Nothing}
 
 	| EventKey (MouseButton wheel) _ _ _ <- event
-	= state {view=(view state){zoom = zoom (view state) * if wheel==WheelUp then 0.9 else 1/0.9}}
+	= state {view=(view state){zoom = zoom (view state) * case wheel of 
+		WheelUp -> 0.9
+		WheelDown -> 1/0.9
+		otherwise -> 1
+	}}
 
 	| otherwise
 	= state

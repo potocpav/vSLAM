@@ -25,17 +25,13 @@ r22 = cos
 theta :: Camera2 -> Feature -> Float
 theta c f = h1 c (mu f) / h2 c (mu f)
 
--- | Helper jacobianjacob_h :: Camera2 -> Feature4 -> Matrix Float
+-- | Helper jacobian
 jacob_h :: Camera2 -> Feature -> Matrix Float
 jacob_h (Camera2 (Point2 xc yc) phic) (Feature f _) = fromLists 
 	[ [  (f!3)*cos(phic), (f!3)*sin(phic),  cos(phic)*cos(f!2)-sin(phic)*sin(f!2), -(xc-(f!0))*cos(phic)-(yc-(f!1))*sin(phic) ]
     , [ -(f!3)*sin(phic), (f!3)*cos(phic), -cos(f!2)*sin(phic)-cos(phic)*sin(f!2), -(yc-(f!1))*cos(phic)+(xc-(f!0))*sin(phic) ] ]
     
---jacob_h :: Camera2 -> Feature4 -> Matrix Float
---jacob_h (Camera2 (Point2 xc yc) phic) (Feature4 (Point2 xi yi) phii rho) = fromLists 
---	[ [  rho*cos(phic), rho*sin(phic),  cos(phic)*cos(phii)-sin(phic)*sin(phii), -(xc-xi)*cos(phic)-(yc-yi)*sin(phic) ]
---    , [ -rho*sin(phic), rho*cos(phic), -cos(phii)*sin(phic)-cos(phic)*sin(phii), -(yc-yi)*cos(phic)+(xc-xi)*sin(phic) ] ]
-    
+
 -- | Jacobian of the 'theta' projection.
 jacobian :: Camera2 -> Feature -> Matrix Float
 jacobian c f@(Feature mu _) = fromLists [
