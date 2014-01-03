@@ -15,14 +15,15 @@ import Data.Random.Normal
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
 
-data World = World {features :: [Feature]}
+data World = World {landmarks :: [Point]}
 
 data State = State 
 		{ view :: View
 		, world :: World
-		, lastCamPos :: (Maybe Point) } -- last position of mouse when moving the camera
+		, viewMousePos :: (Maybe Point) } -- last position of mouse when moving the camera
 
 (width, height) = (600, 600) :: (Float,Float)
+landmark = Color blue $ Circle 0.05
 
 -- | Return a random point from the feature distribution, and converted to
 -- euclidean space
@@ -49,20 +50,14 @@ main = do
 	print f1
 	print f2
 	
-	let state = State (View 0 0 2) (World []) Nothing
-	play    (InWindow "Draw" (floor width, floor height) (0,0))
-                white 100 state
-                makePicture handleEvent stepWorld
-	
-	{-
-	animate (InWindow "My Window" (w, h) (10, 10)) white (picture f1) where
-		picture f t = project $  pictures 
-			[ Circle 1
-			, drawFeature $ update f (Camera2 (Point2 (-2) (2)) (t/10)) (-0.0, 0.15)
-			, Line [(sin(t/10-pi/4)*5-2,cos(t/10-pi/4)*5+2),(-2,2),(sin(t/10+pi/4)*5-2,cos(t/10+pi/4)*5+2)] ]
-		w = 600; h = 600
-		project = Scale (fromIntegral w/2) (fromIntegral h/2)
-	-}
+	let state = State 
+		(View 0 0 2) 
+		(World [(a,b) | a<-[0,0.2..1], b<-[0,0.2..1]])
+		Nothing
+	play	(InWindow "Draw" (floor width, floor height) (0,0))
+			white 100 state
+			makePicture handleEvent stepWorld
+
 	
 -- | Convert our state to a picture.
 makePicture :: State -> Picture
@@ -70,7 +65,8 @@ makePicture (State view world _) = viewTransform picture where
 	viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
 	scale = min width height / zoom view
 	
-	picture = pictures [Circle 1]
+	picture = pictures $ [Circle 1] 
+		++ (map (\a -> uncurry Translate a landmark) (landmarks world))
 	
 	
 handleEvent :: Event -> State -> State
@@ -83,8 +79,10 @@ handleEvent event state
 			State (View (vx+dx/scale) (vy+dy/scale) zoom) world (Just (x,y))
 
 	| EventKey (MouseButton RightButton) dir _ pt <- event
-	, State _ _ Nothing <- state
-	= state {lastCamPos = if dir == Down then Just pt else Nothing}
+	= state {viewMousePos = if dir == Down then Just pt else Nothing}
+
+	| EventKey (MouseButton wheel) _ _ _ <- event
+	= state {view=(view state){zoom = zoom (view state) * if wheel==WheelUp then 0.9 else 1/0.9}}
 
 	| otherwise
 	= state
