@@ -50,7 +50,7 @@ main = do
 	print f1
 	print f2
 	
-	let state = State 
+	let initial = State 
 		(View 0 0 4) 
 		(World 
 			[(1,1),(-1,0),(-0.5,1.5)]
@@ -59,8 +59,12 @@ main = do
 			)
 		Nothing
 	play	(InWindow "Draw" (floor width, floor height) (0,0))
-			white 100 state
+			white 100 initial
 			makePicture handleEvent stepWorld
+
+
+dispBackground :: Picture
+dispBackground = Color (greyN 0.7) $ Circle 1
 
 dispLandmark :: Point -> Picture
 dispLandmark a = uncurry Translate a landmark
@@ -70,18 +74,19 @@ dispCamera (Camera (x, y) phi) = Color (dark green) $ Line
 		[(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)] where
 	posPlusPhi phi = let scale=sqrt 2 in 
 		(x+sin(phi)*scale,y+cos(phi)*scale)
-	
+
+
 -- | Convert our state to a picture.
 makePicture :: State -> Picture
 makePicture (State view world _) = viewTransform picture where
 	viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
 	scale = min width height / zoom view
 	
-	picture = pictures $ [Circle 1] 
+	picture = pictures $ [dispBackground] 
 		++ (map dispLandmark (landmarks world))
 		++ [dispCamera (camera world)]
 	
-	
+
 handleEvent :: Event -> State -> State
 handleEvent event state
 	| EventMotion (x, y)    <- event
@@ -96,13 +101,14 @@ handleEvent event state
 
 	| EventKey (MouseButton wheel) _ _ _ <- event
 	= state {view=(view state){zoom = zoom (view state) * case wheel of 
-		WheelUp -> 0.9
-		WheelDown -> 1/0.9
+		WheelUp -> 0.8
+		WheelDown -> 1/0.8
 		otherwise -> 1
 	}}
 
 	| otherwise
 	= state
+
 
 -- | Not varying with time
 stepWorld :: Float -> State -> State
