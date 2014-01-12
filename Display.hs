@@ -5,8 +5,8 @@ import Feature
 import EKF2D
 import Simulate
 
-import Data.Matrix hiding (fromList, (!), trace)
-import Data.Vector hiding ((++), drop, take, map, update)
+import qualified Data.Matrix as M
+import qualified Data.Vector as V
 import qualified Data.Set as S
 
 import Graphics.Gloss hiding (Vector,Point)
@@ -29,14 +29,14 @@ landmark = Color blue $ Circle 0.05
 
 -- | Return a random point from the feature distribution, and converted to
 -- euclidean space
-sample :: Feature -> Int -> Vector Float
+sample :: Feature -> Int -> V.Vector Float
 sample (Feature mu cov) seed = toXY random4 where
-	random4 = getCol 1 $ colVector mu + cov * randomStd seed
-	randomStd seed = colVector $ fromList (take 4 $ mkNormals' (0,1) seed)
+	random4 = M.getCol 1 $ M.colVector mu + cov * randomStd seed
+	randomStd seed = M.colVector $ V.fromList (take 4 $ mkNormals' (0,1) seed)
 
 -- | Return a pseudo-random infinite list of points. List made of similar seeds are
 -- themselves similar.
-samples :: Feature -> Int -> [Vector Float]
+samples :: Feature -> Int -> [V.Vector Float]
 samples feature seed = map (sample feature) [seed..]
 
 drawFeature :: Feature -> Picture
@@ -44,7 +44,7 @@ drawFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
 	lines = [Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]]
 	points = samples f 8000 -- this number is seed
 	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) $ Circle 0.02) `fmap` take 1000 points -- this number is nr. of points
-
+	(!) = (V.!)
 
 main = do
 	let f1 = initialize (Camera (0, 0) 0) (0, 0.05)
