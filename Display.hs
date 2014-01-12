@@ -47,19 +47,16 @@ drawFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
 	(!) = (V.!)
 
 main = do
-	let f1 = initialize (Camera (0, 0) 0) (0, 0.05)
-	let f2 = update f1 (Camera (-1, 0) 0.1) (-0.0, 0.05)
-	print f1
-	print f2
-	
 	initial_landmarks <- initial
+	print $ measurement (Camera (0, 0) 0) initial_landmarks
+	
 	let initial = State 
 		(View 0 0 20) 
 		(World 
 			initial_landmarks
 			[]
 			(Camera (0, 0) 0)
-			)
+		)
 		Nothing
 	play	(InWindow "Draw" (floor width, floor height) (0,0))
 			white 100 initial
