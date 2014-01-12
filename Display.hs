@@ -12,7 +12,12 @@ import qualified Data.Set as S
 import Graphics.Gloss hiding (Vector,Point)
 import Graphics.Gloss.Interface.Pure.Game hiding (Vector,Point)
 import Data.Random.Normal
---import Debug.Trace (trace)
+
+-- for debugging
+import System.IO.Unsafe (unsafePerformIO)
+
+debug :: Show a => a -> a
+debug a = unsafePerformIO (print a) `seq` a
 
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
@@ -22,7 +27,9 @@ data World = World { landmarks :: S.Set Point, features :: [Feature], camera :: 
 data State = State 
 		{ view :: View
 		, world :: World
-		, viewMousePos :: (Maybe Point) } -- last position of mouse when moving the camera
+		, viewMousePos :: (Maybe Point) -- last position of mouse when moving the camera
+		, leftButton :: (Maybe Point) 
+		}
 
 (width, height) = (600, 600) :: (Float,Float)
 landmark = Color blue $ Circle 0.05
@@ -58,27 +65,33 @@ main = do
 			(Camera (0, 0) 0)
 		)
 		Nothing
+		Nothing
 	play	(InWindow "Draw" (floor width, floor height) (0,0))
 			white 100 initial
 			makePicture handleEvent stepWorld
 
 
 dispBackground :: Picture
-dispBackground = Color (greyN 0.7) $ Circle 1
+dispBackground = Color (greyN 0.7) $ pictures
+	[ Circle 1
+	, Line [(-10,0),(10,0)]
+	, Line [(0,-10),(0,10)]
+	]
 
 dispLandmark :: Point -> Picture
 dispLandmark a = uncurry Translate a landmark
 
 dispCamera :: Camera -> Picture
-dispCamera (Camera (x, y) phi) = Color (dark green) $ Line 
-		[(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)] where
+dispCamera (Camera (x, y) phi) = Color (dark green) $ pictures
+	[ Line [(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)]
+	, Translate x y $ Circle 0.2 ] where
 	posPlusPhi phi = let scale=sqrt 2 in 
 		(x+sin(phi)*scale,y+cos(phi)*scale)
 
 
 -- | Convert our state to a picture.
 makePicture :: State -> Picture
-makePicture (State view world _) = viewTransform picture where
+makePicture (State view world _ _) = viewTransform picture where
 	viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
 	scale = min width height / zoom view
 	
@@ -89,18 +102,36 @@ makePicture (State view world _) = viewTransform picture where
 
 handleEvent :: Event -> State -> State
 handleEvent event state
-	| EventMotion (x, y)    <- event
-	, State (View  vx vy zoom) world (Just (px, py)) <- state
+
+	| EventKey (MouseButton LeftButton) Down _ pt <- event
+	= state { world = (world state) { 
+					camera = Camera (toWorld (view state) pt) 0 }   
+		    , leftButton = Just pt
+	        }
+	
+	| EventKey (MouseButton LeftButton) Up _ _ <- event
+	= state { leftButton = Nothing }
+	
+	| EventMotion (x,y) <- event
+	, State _ _ _ (Just pt@(cx,cy)) <- state
+	= state { world = (world state) {
+				camera = Camera (toWorld (view state) pt) (atan2 (x-cx) (y-cy))
+	}}
+
+	| EventMotion (x, y) <- event
+	, State (View  vx vy zoom) _ (Just (px, py)) _ <- state
 	= let 
 		dx = px-x; dy = py-y
 		scale = min width height / zoom in
-			State (View (vx+dx/scale) (vy+dy/scale) zoom) world (Just (x,y))
+			state { view         = (View (vx+dx/scale) (vy+dy/scale) zoom)
+			      , viewMousePos = Just (x,y)
+			}
 
 	| EventKey (MouseButton MiddleButton) dir _ pt <- event
 	= state {viewMousePos = if dir == Down then Just pt else Nothing}
 
 	| EventKey (MouseButton wheel) _ _ _ <- event
-	= state {view=(view state){zoom = zoom (view state) * case wheel of 
+	= state {view = (view state) {zoom = zoom (view state) * case wheel of 
 		WheelUp -> 0.8
 		WheelDown -> 1/0.8
 		otherwise -> 1
@@ -109,6 +140,8 @@ handleEvent event state
 	| otherwise
 	= state
 
+toWorld :: View -> Point -> Point
+toWorld (View x y z) (sx,sy) = ((sx/width) * z + x, (sy/height) * z + y)
 
 -- | Not varying with time
 stepWorld :: Float -> State -> State
