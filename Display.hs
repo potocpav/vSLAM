@@ -3,9 +3,11 @@ module Display (display) where
 
 import Feature
 import EKF2D
+import Simulate
 
 import Data.Matrix hiding (fromList, (!), trace)
 import Data.Vector hiding ((++), drop, take, map, update)
+import qualified Data.Set as S
 
 import Graphics.Gloss hiding (Vector,Point)
 import Graphics.Gloss.Interface.Pure.Game hiding (Vector,Point)
@@ -15,7 +17,7 @@ import Data.Random.Normal
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
 
-data World = World { landmarks :: [Point], features :: [Feature], camera :: Camera }
+data World = World { landmarks :: S.Set Point, features :: [Feature], camera :: Camera }
 
 data State = State 
 		{ view :: View
@@ -50,10 +52,11 @@ main = do
 	print f1
 	print f2
 	
+	initial_landmarks <- initial
 	let initial = State 
-		(View 0 0 4) 
+		(View 0 0 20) 
 		(World 
-			[(1,1),(-1,0),(-0.5,1.5)]
+			initial_landmarks
 			[]
 			(Camera (0, 0) 0)
 			)
@@ -83,7 +86,7 @@ makePicture (State view world _) = viewTransform picture where
 	scale = min width height / zoom view
 	
 	picture = pictures $ [dispBackground] 
-		++ (map dispLandmark (landmarks world))
+		++ map dispLandmark (S.toList $ landmarks world)
 		++ [dispCamera (camera world)]
 	
 
