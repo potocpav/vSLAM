@@ -22,7 +22,7 @@ debug a = unsafePerformIO (print a) `seq` a
 
 data View = View {vx :: Float, vy :: Float, zoom :: Float}
 
-data World = World { landmarks :: S.Set Point, features :: [Feature], camera :: Camera }
+data World = World { landmarks :: [Point], features :: [Feature], camera :: Camera }
 
 data State = State 
 		{ view :: View
@@ -46,11 +46,13 @@ sample (Feature mu cov) seed = toXY random4 where
 samples :: Feature -> Int -> [V.Vector Float]
 samples feature seed = map (sample feature) [seed..]
 
-drawFeature :: Feature -> Picture
-drawFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
+dispFeature :: Feature -> Picture
+dispFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
 	lines = [Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]]
 	points = samples f 8000 -- this number is seed
-	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) $ Circle 0.02) `fmap` take 1000 points -- this number is nr. of points
+	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) 
+				$ Line [(-0.1,0),(0.1,0)]) 
+				`fmap` take 100 points -- this number is nr. of points
 	(!) = (V.!)
 
 main = do
@@ -96,12 +98,15 @@ makePicture (State view world _ _) = viewTransform picture where
 	scale = min width height / zoom view
 	
 	picture = pictures $ [dispBackground] 
-		++ map dispLandmark (S.toList $ landmarks world)
+		++ map dispLandmark (landmarks world)
 		++ [dispCamera (camera world)]
+		++ map dispFeature (features world)
 	
 
 handleEvent :: Event -> State -> State
 handleEvent event state
+
+	-- mouse control of the camera
 
 	| EventKey (MouseButton LeftButton) Down _ pt <- event
 	= state { world = (world state) { 
@@ -113,10 +118,14 @@ handleEvent event state
 	= state { leftButton = Nothing }
 	
 	| EventMotion (x,y) <- event
-	, State _ _ _ (Just pt@(cx,cy)) <- state
-	= state { world = (world state) {
-				camera = Camera (toWorld (view state) pt) (atan2 (x-cx) (y-cy))
-	}}
+	, State _ world _ (Just pt@(cx,cy)) <- state
+	= let cam = Camera (toWorld (view state) pt) (atan2 (x-cx) (y-cy)) in
+	state { world = world 
+				{ camera = cam 
+				, features = map (\a -> initialize cam (a,0.1)) $ measurement cam (landmarks world) }
+	}
+	
+	-- Mouse control of the view
 
 	| EventMotion (x, y) <- event
 	, State (View  vx vy zoom) _ (Just (px, py)) _ <- state
@@ -136,6 +145,11 @@ handleEvent event state
 		WheelDown -> 1/0.8
 		otherwise -> 1
 	}}
+	
+	-- keyboard controls
+	
+	| EventKey (Char 'x') Down _ _ <- event
+	= state
 
 	| otherwise
 	= state
