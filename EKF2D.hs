@@ -1,6 +1,6 @@
 -- | 
 
-module EKF2D (initialize, update) where
+module EKF2D (initialize, update, theta, jacobian) where
 
 import Feature
 import qualified Data.Matrix as M
@@ -24,24 +24,26 @@ r22 = cos
 
 -- | This it the projection of the Feature into the Camera.
 -- It doesn't care about covariance
-theta :: Camera -> Feature -> Float
-theta c f = h1 c (mu f) / h2 c (mu f)
+theta :: Camera -> V.Vector Float -> Float
+theta c mu = h1 c mu / h2 c mu
 
--- | Helper jacobian
-jacob_h :: Camera -> Feature -> M.Matrix Float
-jacob_h (Camera (xc, yc) phic) (Feature f _) = M.fromLists 
+-- | Helper jacobian. Takes camera and mean value of a feature, returns the jacobian
+-- of measurement function, before roatation.
+jacob_h :: Camera -> V.Vector Float -> M.Matrix Float
+jacob_h (Camera (xc, yc) phic) f = M.fromLists 
 	[ [  (f!3)*cos(phic), (f!3)*sin(phic),  cos(phic)*cos(f!2)-sin(phic)*sin(f!2), -(xc-(f!0))*cos(phic)-(yc-(f!1))*sin(phic) ]
     , [ -(f!3)*sin(phic), (f!3)*cos(phic), -cos(f!2)*sin(phic)-cos(phic)*sin(f!2), -(yc-(f!1))*cos(phic)+(xc-(f!0))*sin(phic) ] ]
     
 
 -- | Jacobian of the 'theta' projection.
-jacobian :: Camera -> Feature -> M.Matrix Float
-jacobian c f@(Feature mu _) = M.fromLists [
+-- Takes camera and the mean value of a feature.
+jacobian :: Camera -> V.Vector Float -> M.Matrix Float
+jacobian c mu = M.fromLists [
 	[ M.getElem 1 1 jh / b - absq * M.getElem 2 1 jh 
 	, M.getElem 1 2 jh / b - absq * M.getElem 2 2 jh 
 	, M.getElem 1 3 jh / b - absq * M.getElem 2 3 jh 
 	, M.getElem 1 4 jh / b - absq * M.getElem 2 4 jh ] ] where
-		jh = jacob_h c f
+		jh = jacob_h c mu
 		a = h1 c mu
 		b = h2 c mu
 		absq = a/b^^2
@@ -51,23 +53,26 @@ jacobian c f@(Feature mu _) = M.fromLists [
 -- 1. features are statioinary,
 -- 2. camera pose is exactly known.
 -- implemented as in http://en.wikipedia.org/wiki/Extended_Kalman_Filter
+-- TODO: delete this one!
 update :: Feature -> Camera -> (Float, Float) -> Feature
-update (f@(Feature mu cov)) cam (phi, var) = let
+update (f@(Feature eta mu cov)) cam (phi, var) = let
 --update (f@(Feature4 (Point2 xi yi) phii rho), cov) cam (phi, var) = let
 	mu' = mu 					-- state prediction
 	cov' = cov				    -- covariance prediction
-	f' = Feature mu' cov'
-	y = phi - theta cam f'   	-- measurement rezidual
-	p = jacobian cam f'
+	f' = Feature eta mu' cov'
+	y = phi - theta cam mu   	-- measurement rezidual
+	p = jacobian cam mu
 	s = M.getElem 1 1 (p * cov' * M.transpose p) + var 	-- rezidual covariance (singleton)
 	k = cov' * M.transpose p * M.fromLists [[(1/s)]] 	-- gain
 	
-	in Feature (M.getCol 1 $ M.colVector mu + k * M.fromLists [[y]]) ((M.identity 4 - k*p)*cov')
+	in Feature eta (M.getCol 1 $ M.colVector mu + k * M.fromLists [[y]]) ((M.identity 4 - k*p)*cov')
 
 
 -- | Initialize feature from one measurement. Tuple contains mean and variance.
+-- It initialises also the feature weight. But i do not know, what value is desired.
+-- TODO: tweak the eta value (maybe not 1.0).
 initialize :: Camera -> (Float, Float) -> Feature
-initialize (Camera (posx,posy) angle) (phi, varphi) = Feature (V.fromList [posx, posy, angle+atan(phi), rho0]) cov where
+initialize (Camera (posx,posy) angle) (phi, varphi) = Feature 1.0 (V.fromList [posx, posy, angle+atan(phi), rho0]) cov where
 	rho0 = 0.1
 	cov = M.matrix 4 4 (\(a, b) -> if a /= b then 0 else diag!(a-1))
 	diag = V.fromList [0, 0, abs ((atan(phi-varphi)-atan(phi+varphi))/2), 0.5] :: V.Vector Float

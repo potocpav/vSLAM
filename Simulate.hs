@@ -19,5 +19,5 @@ measure (Camera (cx, cy) phi) (px, py) = if y >= 1 && abs m <= 1
 
 -- | Gets the set of all measured features. Their number is naturally smaller,
 -- than the number of all landmarks: not all are in camera's FOV.
-measurement :: Camera -> [Point] -> [Float]
+measurement :: Camera -> [Point] -> [Measurement]
 measurement cam pts = catMaybes $ map (measure cam) pts

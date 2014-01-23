@@ -37,7 +37,7 @@ landmark = Color blue $ Circle 0.05
 -- | Return a random point from the feature distribution, and converted to
 -- euclidean space
 sample :: Feature -> Int -> V.Vector Float
-sample (Feature mu cov) seed = toXY random4 where
+sample (Feature _ mu cov) seed = toXY random4 where
 	random4 = M.getCol 1 $ M.colVector mu + cov * randomStd seed
 	randomStd seed = M.colVector $ V.fromList (take 4 $ mkNormals' (0,1) seed)
 
@@ -47,8 +47,8 @@ samples :: Feature -> Int -> [V.Vector Float]
 samples feature seed = map (sample feature) [seed..]
 
 dispFeature :: Feature -> Picture
-dispFeature f@(Feature mu cov) = pictures $ lines ++ shownPoints where
-	lines = [Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]]
+dispFeature f@(Feature _ mu cov) = pictures $ line : shownPoints where
+	line = Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]
 	points = samples f 8000 -- this number is seed
 	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) 
 				$ Line [(-0.1,0),(0.1,0)]) 

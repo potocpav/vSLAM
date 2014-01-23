@@ -7,10 +7,11 @@ import qualified Data.Vector as V
 -- Feature has mu and covariance
 -- size of Vector and Matrix are sadly not checked.
 -- mu = <x,y,phi,rho>
-data Feature = Feature {mu :: V.Vector Float, cov :: M.Matrix Float}
+data Feature = Feature {eta :: Float, mu :: V.Vector Float, cov :: M.Matrix Float}
 instance Show Feature where
-	show f = "Feature" ++ drop 8 (show (mu f)) ++ "\n" ++ show (cov f)
+	show (Feature eta mu cov) = "Feature " ++ show eta ++ "\n" ++ drop 8 (show mu) ++ "\n" ++ show cov
 
+type Measurement = Float
 type Point = (Float, Float)
 
 data Camera = Camera Point Float
