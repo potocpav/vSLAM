@@ -1,5 +1,5 @@
 
-module Simulate (initial, measurement) where
+module Simulate (initial, measure, measurement) where
 
 import Feature
 

@@ -1,4 +1,6 @@
+{-# LANGUAGE PatternGuards #-}
 
+-- | This module uses Gloss 2D library to visualize the SLAM filter.
 module Display (display) where
 
 import Feature
@@ -55,7 +57,7 @@ dispFeature f@(Feature _ mu cov) = pictures $ line : shownPoints where
 				`fmap` take 100 points -- this number is nr. of points
 	(!) = (V.!)
 
-main = do
+main' = do
 	initial_landmarks <- initial
 	print $ measurement (Camera (0, 0) 0) initial_landmarks
 	
