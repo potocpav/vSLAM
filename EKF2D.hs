@@ -56,7 +56,6 @@ jacobian c mu = M.fromLists [
 -- TODO: delete this one!
 update :: Feature -> Camera -> (Float, Float) -> Feature
 update (f@(Feature eta mu cov)) cam (phi, var) = let
---update (f@(Feature4 (Point2 xi yi) phii rho), cov) cam (phi, var) = let
 	mu' = mu 					-- state prediction
 	cov' = cov				    -- covariance prediction
 	f' = Feature eta mu' cov'

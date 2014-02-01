@@ -6,12 +6,17 @@ import Feature
 import Simulate (measure)
 import qualified Data.Matrix as M
 import qualified Data.Vector as V
-import GHC.Float (double2Float, float2Double)
 
 import Statistics.Distribution (density)
 import Statistics.Distribution.Normal (normalDistr)
-import Data.RVar
 import Control.Applicative ((<$>))
+import Data.Random
+
+-- for debugging
+import System.IO.Unsafe (unsafePerformIO)
+debug :: Show a => String -> a -> a
+debug s a = unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
+infixr 1 `debug`
 
 -- TODO: Consider replacing lists by vectors. It could be more efficient.
 
@@ -27,20 +32,20 @@ type Particle = (Float, Camera, [Feature])
 -- | Take a normal distribution (in a detector-space) and compute the density
 -- function f(m;mu,cov).
 normalDensity :: Float -> Float -> Float -> Float
-normalDensity mu cov m = d2f $ density (normalDistr (f2d mu) (f2d $ sqrt cov)) (f2d m)
-	where d2f = double2Float
-	      f2d = float2Double
+normalDensity mu cov m = 1/sqrt(cov*2*pi)*exp(-(m-mu)*(m-mu)/(2*cov))
 
 -- | Measurement covariance. In practice would be something like the angle of 1 pixel.
-measurement_cov = M.fromLists [[0.1]]
+measurement_cov = M.fromLists [[0.01]]
 
 -- | TODO: get a correct value
 _lambda_c = 0.1
 
--- | Measurement Likelihood. This is the probability, that a feature would be
+-- | Measurement Probability. This is the probability, that a feature would be
 -- measured on the sensor in a certain position on projection plane
-_P_D :: V.Vector Float -> Camera -> Float
-_P_D mu cam = if measure cam (mu V.! 0, mu V.! 1) == Nothing then 0 else 0.9
+_P_D :: Feature -> Camera -> Float
+_P_D f cam = 2*mean [ if measure cam (mu V.! 0, mu V.! 1) == Nothing then 0 else 1
+				| mu <- take 10 $ samples f 123123 ] where
+	mean l = sum l / fromIntegral (length l)
 
 -- | Clutter Rate; this is the probability of a false alarm on a sensor.
 -- This is independent of Measurement, we will see if it is cool or not
@@ -54,13 +59,13 @@ _c = 0.1
 predict :: Camera -> [Measurement] -> [Feature] -> (Camera -> RVar Camera) -> RVar (Camera, [Feature], Float)
 predict cam ms fs f = do
 	cam' <- f cam
-	let features' = map (\a -> initialize cam' (a,0.1)) ms ++ fs
+	let features' = map (\a -> initialize cam' (a,M.getElem 1 1 measurement_cov)) ms ++ fs
 	let m_kk1 = sum $ map eta features'
 	return (cam', features', m_kk1)
 
 missedDetections :: Camera -> [Feature] -> [Feature]
-missedDetections cam = 
-	map $ \(Feature _eta _mu _P) -> Feature ((1 - _P_D _mu cam) * _eta) _mu _P
+missedDetections cam =
+	map $ \(f@(Feature _eta _mu _P)) -> Feature ((1 - _P_D f cam) * _eta) _mu _P
 
 
 -- | Tail-recursive routine, producing the terms needed for the EKF update.
@@ -78,23 +83,23 @@ detection :: Camera -> [UpdateTerms] -> Measurement -> [Feature] -> [Feature]
 detection cam u m f = normalize $ detection' u m f where
 
 	normalize :: [Feature] -> [Feature]
-	normalize fs = map (\(Feature tau mu cov) -> Feature (tau / sumf) mu cov) fs where
-		sumf = sum $ map eta fs
+	normalize fs = map (\(Feature tau mu cov) -> Feature ("Weights" `debug` tau / sumf) mu cov) fs where
+		sumf = _c + sum (map eta fs)
 	
 	-- | Function, that outputs Features with not-normalized weights tau'.
 	detection' :: [UpdateTerms] -> Measurement -> [Feature] -> [Feature]
 	detection' (Terms _z' _S _K _P : rest) m (f : fs) = let
-		tau' = _P_D (mu f) cam * (eta f) * normalDensity _z' (M.getElem 1 1 _S) m
+		tau' = _P_D f cam * (eta f) * normalDensity _z' (M.getElem 1 1 _S) m
 		mu' = M.getCol 1 $ (M.colVector $ mu f) + _K * M.fromLists [[m - _z']]
 		cov' = _P
 		in  Feature tau' mu' cov' : detection' rest m fs
-	detection' _ _ _ = []
+	detection' [] _ [] = []
 
 
 -- | Merging and pruning operations.
 -- As you can see, it is rather simple and could use some improvement :-)
 prune :: [Feature] -> [Feature]
-prune = id
+prune f = filter (\(Feature eta _ _) -> eta > 10^^(-3)) f
 
 -- | TODO: Pruning and Merging operations.
 mapUpdate :: Camera -> [Measurement] -> [Feature] -> ([Feature],Float)
