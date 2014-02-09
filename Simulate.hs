@@ -7,7 +7,7 @@ import Data.Maybe (catMaybes)
 
 -- | Create a map, consisting of some predefined landmarks.
 initial :: IO [Point]
-initial = return [(1,2),(-3,4),(0,5),(6,7)]
+initial = return [(0,0), (3,0)]
 
 -- | perspective projection.
 -- Near plane is at 1 and fov=90 degrees.

@@ -42,13 +42,15 @@ landmark = Color blue $ Circle 0.05
 
 -- | Display a feature. The first parameter is a feature intensity, from an interval (0,1).
 dispFeature :: Feature -> Picture
-dispFeature f@(Feature eta mu cov) = pictures $  shownPoints where
+dispFeature f@(Feature eta mu cov) = pictures $ line : shownPoints where
 	line = Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]
-	points = samples f 8000 -- this number is seed
+	points = samples f seed
+	seed = floor $ (eta + M.trace cov + V.sum mu) * 10^10
 	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) 
 				$ pictures [Line [(-0.05,0),(0.05,0)], Line [(0,-0.05),(0,0.05)]]) 
-				`fmap` take (floor (eta*1000)) points -- this number is nr. of points
+				`fmap` take (floor (1000*eta)) points -- this number is nr. of points
 	(!) = (V.!)
+	
 
 main = do
 	initial_landmarks <- initial
@@ -95,9 +97,18 @@ makePicture (State view world _ _) = return $ viewTransform picture where
 	picture = pictures $ [dispBackground] 
 		++ map dispLandmark (landmarks world)
 		++ [dispCamera (camera world)]
-		++ map dispFeature (concatMap (\(_,_,f) -> f) (particles world))
+		++ map dispFeature  (concatMap (\(_,_,f) -> f) (particles world))
+		
+{-	do
+	let scale = min width height / zoom view
+	let viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
 	
-
+	let purePics = [dispBackground] 
+		++ map dispLandmark (landmarks world)
+		++ [dispCamera (camera world)]
+	ioPics <- mapM dispFeature (concatMap (\(_,_,f) -> f) (particles world))
+	return $ viewTransform (pictures (purePics ++ ioPics))
+-}
 handleEvent :: Event -> State -> IO State
 handleEvent event state
 
@@ -137,7 +148,7 @@ handleEvent event state
 			      , viewMousePos = Just (x,y)
 			}
 
-	| EventKey (MouseButton MiddleButton) dir _ pt <- event
+	| EventKey (MouseButton RightButton) dir _ pt <- event
 	= return $ state {viewMousePos = if dir == Down then Just pt else Nothing}
 
 	| EventKey (MouseButton wheel) _ _ _ <- event
