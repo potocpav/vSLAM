@@ -99,16 +99,7 @@ makePicture (State view world _ _) = return $ viewTransform picture where
 		++ [dispCamera (camera world)]
 		++ map dispFeature  (concatMap (\(_,_,f) -> f) (particles world))
 		
-{-	do
-	let scale = min width height / zoom view
-	let viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
-	
-	let purePics = [dispBackground] 
-		++ map dispLandmark (landmarks world)
-		++ [dispCamera (camera world)]
-	ioPics <- mapM dispFeature (concatMap (\(_,_,f) -> f) (particles world))
-	return $ viewTransform (pictures (purePics ++ ioPics))
--}
+
 handleEvent :: Event -> State -> IO State
 handleEvent event state
 
@@ -151,12 +142,17 @@ handleEvent event state
 	| EventKey (MouseButton RightButton) dir _ pt <- event
 	= return $ state {viewMousePos = if dir == Down then Just pt else Nothing}
 
-	| EventKey (MouseButton wheel) _ _ _ <- event
-	= return $ state {view = (view state) {zoom = zoom (view state) * case wheel of 
-		WheelUp -> 0.8
-		WheelDown -> 1/0.8
-		otherwise -> 1
-	}}
+	| EventKey (MouseButton wheel) _ _ pt <- event
+	, View vx vy zoom' <- view state
+	= let -- This math zooms to cursor
+		(vx',vy') = toWorld (view state) pt
+		px        = (vx - vx') * dz + vx'
+		py        = (vy - vy') * dz + vy'
+		dz        = case wheel of 
+			WheelUp -> 0.8
+			WheelDown -> 1/0.8
+			otherwise -> 1
+	in return $ state { view = View px py $ zoom' * dz }
 	
 	-- keyboard controls
 	

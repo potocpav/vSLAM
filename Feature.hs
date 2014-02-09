@@ -44,8 +44,7 @@ sampleIO (Feature _ mu cov) = do
 	let random4 = M.getCol 1 $ M.colVector mu + cov * randomStd
 	return $ toXY random4
 
--- | Return a pseudo-random infinite list of points. List made of similar seeds are
--- themselves similar (seed different by n will result in n first samples different)
+-- | Return a pseudo-random infinite list of points.
 samples :: Feature -> Int -> [V.Vector Float]
 samples feature seed = map (sample feature) [seed,seed+randomBigNumber..] where
 	randomBigNumber = 123456
