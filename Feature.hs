@@ -1,39 +1,44 @@
 
 module Feature where
 
-import qualified Data.Matrix as M
-import qualified Data.Vector as V
-
+import Numeric.LinearAlgebra
 --import Data.Random hiding (sample)
 import Data.Random.Normal
 
--- Feature has mu and covariance
--- size of Vector and Matrix are sadly not checked.
--- mu = <x,y,phi,rho>
-data Feature = Feature {eta :: Float, mu :: V.Vector Float, cov :: M.Matrix Float}
+import InternalMath
+
+data Feature = Feature {eta :: Double, mu :: Vector Double, cov :: Matrix Double}
 instance Show Feature where
-	show (Feature eta mu cov) = "Feature " ++ show eta ++ "\n" ++ drop 8 (show mu) ++ "\n" ++ show cov
+	show (Feature eta mu cov) = "Feature " ++ show eta ++ drop 8 (show mu) ++ "\n" ++ show cov
 
-type Measurement = Float
-type Point = (Float, Float)
+type Measurement = (Double, Double)
+-- data Point = Pt Double Double Double
 
-data Camera = Camera Point Float
+-- | Camera is parametrised by its position and a rotation matrix.
+data Camera = Camera (Vector Double) (Matrix Double)
 	deriving (Show)
 
+
+
 -- | Inverse depth to euclidean parametrization conversion
-toXY :: V.Vector Float -> V.Vector Float
-toXY v = V.fromList [(v!0) + sin(v!2) / (v!3), (v!1) + cos(v!2) / (v!3)] where
-	(!) = (V.!)
+toXY :: Vector Double -> Vector Double
+toXY i = (3|> [x,y,z]) + scale (1/rho) (euler2vec (theta,phi)) where
+	[x,y,z,theta,phi,rho] = toList i
 
 
 -- | Return a pseudo-random point from the feature distribution converted to
 -- euclidean space
-sample :: Feature -> Int -> V.Vector Float
-sample (Feature _ mu cov) seed = toXY random4 where
-	random4 = M.getCol 1 $ M.colVector mu + cov * randomStd seed
-	randomStd seed = M.colVector $ V.fromList (take 4 $ mkNormals seed)
+sample :: Feature -> Int -> Vector Double
+sample (Feature _ mu cov) seed = toXY random6 where
+	random6 = mu + cov <> randomStd seed
+	randomStd seed = 6|> mkNormals seed
 	
-
+-- | Return a pseudo-random infinite list of points.
+samples :: Feature -> Int -> [Vector Double]
+samples feature seed = map (sample feature) [seed,seed+randomBigNumber..] where
+	randomBigNumber = 234563
+	
+{-
 -- | Return a random point from the feature distribution converted to
 -- euclidean space
 -- TODO: Delete if not needed.
@@ -44,12 +49,9 @@ sampleIO (Feature _ mu cov) = do
 	let random4 = M.getCol 1 $ M.colVector mu + cov * randomStd
 	return $ toXY random4
 
--- | Return a pseudo-random infinite list of points.
-samples :: Feature -> Int -> [V.Vector Float]
-samples feature seed = map (sample feature) [seed,seed+randomBigNumber..] where
-	randomBigNumber = 123456
-
 -- | Take n random samples from Feature pdf
 -- TODO: Delete if needed.
 samplesIO :: Int -> Feature -> IO [V.Vector Float]
 samplesIO n = sequence . take n . repeat . sampleIO
+
+-}

@@ -1,170 +1,109 @@
-{-# LANGUAGE PatternGuards #-}
+{-# OPTIONS_GHC -Wall #-}
 
--- | This module uses Gloss 2D library to visualize the SLAM filter.
-module Display (display) where
+module Main ( main
+            ) where
+
+import Linear
+import SpatialMath ( Euler(..), rotateXyzAboutY, rotVecByEulerB2A, rotateXyzAboutX )
+import Graphics.X11 ( initThreads )
+import Vis
+import Graphics.UI.GLUT hiding ( Plane, Sphere, Points, motionCallback, samples )
+import qualified Data.Set as Set
+
+import Control.Monad ( when )
 
 import Feature
---import EKF2D
-import Simulate
-import PHDSLAM
+import Numeric.LinearAlgebra
 
-import qualified Data.Matrix as M
-import qualified Data.Vector as V
---import qualified Data.Set as S
+ts :: Double
+ts = 0.01
 
-import Graphics.Gloss hiding (Vector,Point)
-import Graphics.Gloss.Interface.IO.Game hiding (Vector,Point)
-import Data.Random hiding (sample)
+faceHeight :: Double
+faceHeight = 1.5
 
-import Data.Random.Source.DevRandom
+data PlayerState = Running (V3 Double) (V3 Double) (Euler Double)
 
--- for debugging
-import System.IO.Unsafe (unsafePerformIO)
+data GameState = GameState { playerState :: PlayerState
+                           , keySet :: Set.Set Key
+                           , lastMousePos :: Maybe (GLint,GLint)
+                           }
 
-debug :: Show a => a -> a
-debug a = unsafePerformIO (print a) `seq` a
+toVertex :: (Real a, Fractional b) => V3 a -> Vertex3 b
+toVertex xyz = (\(V3 x y z) -> Vertex3 x y z) $ fmap realToFrac xyz
 
+setCamera :: PlayerState -> IO ()
+setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target) (Vector3 0 (-1) 0)
+  where
+    xyz0 = V3 x (y-faceHeight) z
+    target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
-data View = View {vx :: Float, vy :: Float, zoom :: Float}
+simfun :: Float -> GameState -> IO GameState
+simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) keys lmp) = do
+  Size x y <- get windowSize
+  let x' = (fromIntegral x) `div` 2
+      y' = (fromIntegral y) `div` 2
 
--- | TODO: Kill camera, because it is already in particles
-data World = World { landmarks :: [Point], particles :: [Particle], camera :: Camera }
+  when (Just (x',y') /= lmp) (pointerPosition $= (Position x' y'))
+  return $ GameState (Running (pos + (ts *^ v)) v euler0) keys (Just (x',y'))
+  where
+    v = rotateXyzAboutY (V3 (d-a) 0 (w-s)) yaw
+      where
+        w = if Set.member (Char 'w') keys then 3 else 0
+        a = if Set.member (Char 'a') keys then 3 else 0
+        s = if Set.member (Char 'r') keys then 3 else 0
+        d = if Set.member (Char 's') keys then 3 else 0
 
-data State = State 
-		{ view :: View
-		, world :: World
-		, viewMousePos :: (Maybe Point) -- last position of mouse when moving the camera
-		, leftButton :: (Maybe Point) 
-		}
+keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
+keyMouseCallback state0 key keystate _ _
+  | keystate == Down = state0 {keySet = Set.insert key (keySet state0)}
+  | keystate == Up   = state0 {keySet = Set.delete key (keySet state0)}
+  | otherwise        = state0
 
-(width, height) = (600, 600) :: (Float,Float)
-landmark = Color blue $ Circle 0.05
+motionCallback :: Bool -> GameState -> Position -> GameState
+motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) _ lmp) (Position x y) =
+  state0 {playerState = newPlayerState, lastMousePos = Just (x,y)}
+  where
+    (x0,y0) = case lmp of Nothing -> (x,y)
+                          Just (x0',y0') -> (x0',y0')
+    newPlayerState = Running pos v (Euler yaw pitch 0)
+    dx = 0.002*realToFrac (x - x0)
+    dy = 0.002*realToFrac (y - y0)
+    yaw = yaw0 + dx
+    pitch = bound (-pi/2.1) (pi/2.1) (pitch0 - dy)
+    bound min' max' val
+      | val < min' = min'
+      | val > max' = max'
+      | otherwise  = val
+    
 
--- | Display a feature. The first parameter is a feature intensity, from an interval (0,1).
-dispFeature :: Feature -> Picture
-dispFeature f@(Feature eta mu cov) = pictures $ line : shownPoints where
-	line = Color red $ Line [(mu!0, mu!1), (mu!0 + sin(mu!2)/ (mu!3), mu!1 + cos(mu!2) / (mu!3))]
-	points = samples f seed
-	seed = floor $ (eta + M.trace cov + V.sum mu) * 10^10
-	shownPoints = (\v -> Translate (v!0) (v!1) . Color (if mu!3 > 0 then black else red) 
-				$ pictures [Line [(-0.05,0),(0.05,0)], Line [(0,-0.05),(0,0.05)]]) 
-				`fmap` take (floor (1000*eta)) points -- this number is nr. of points
-	(!) = (V.!)
+drawfun :: GameState -> VisObject Double
+drawfun (GameState (Running _ _ _) _ _) =
+  VisObjects $ [axes,box,ellipsoid,sphere, drawFeature feature1, drawFeature feature2, drawFeature feature3, plane,boxText] 
+  where
+    x' = -1
+    axes = Axes (1, 25)
+    sphere = Trans (V3 0 x' (-1)) $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
+    ellipsoid = Trans (V3 x' 0 (-1)) $ Ellipsoid (0.2, 0.3, 0.4) Wireframe (makeColor 1 0.3 0.5 1)
+    box = Trans (V3 0 0 x') $ Box (0.2, 0.2, 0.2) Wireframe (makeColor 0 1 1 1)
+    plane = Plane (V3 0 1 0) (makeColor 1 0 0 1)
+    -- text k = Text2d "OLOLOLOLOLO" (100,500 - k*100*x') TimesRoman24 (makeColor 0 (0.5 + x''/2) (0.5 - x''/2) 1)
+    --  where
+    --    x'' = realToFrac $ (x' + 1)/0.4*k/5
+    boxText = Text3d "trololololo" (V3 0 0 (x'-0.2)) TimesRoman24 (makeColor 1 0 0 1)
+    feature1 = Feature 1 (6|> [0,0,0,0,0,0.2]) (diag (6|> [0,0,0,0.01,0.01,0.02]))
+    feature2 = Feature 1 (6|> [3,0,0,-0.5,0,0.5]) (diag (6|> [0,0,0,0.01,0.01,0.5]))
+    feature3 = Feature 1 (6|> [0,-5,3,2,-1,0.5]) (diag (6|> [0,0,0,0.01,0.01,0.5]))
+    
+drawFeature :: Feature -> VisObject Double
+drawFeature f = Points (map vec2v3 (take 300 $ samples f 10)) (Just 3) (makeColor 0 0 0 1) where
+	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
-
+	
+main :: IO ()
 main = do
-	initial_landmarks <- initial
-	print $ measurement (Camera (0, 0) 0) initial_landmarks
-
-	let initial = State 
-		(View 0 0 20) 
-		(World 
-			initial_landmarks
-			[(1,Camera (0,0) 0, [])]
-			(Camera (0, 0) 0)
-		)
-		Nothing
-		Nothing
-	playIO	(InWindow "Draw" (floor width, floor height) (0,0))
-			white 100 initial
-			makePicture handleEvent stepWorld
-
-
-dispBackground :: Picture
-dispBackground = Color (greyN 0.7) $ pictures
-	[ Circle 1
-	, Line [(-10,0),(10,0)]
-	, Line [(0,-10),(0,10)]
-	]
-
-dispLandmark :: Point -> Picture
-dispLandmark a = uncurry Translate a landmark
-
-dispCamera :: Camera -> Picture
-dispCamera (Camera (x, y) phi) = Color (dark green) $ pictures
-	[ Line [(x,y), posPlusPhi (phi+pi/4), posPlusPhi (phi-pi/4), (x,y)]
-	, Translate x y $ Circle 0.2 ] where
-	posPlusPhi phi = let scale=sqrt 2 in 
-		(x+sin(phi)*scale,y+cos(phi)*scale)
-
-
--- | Convert our state to a picture.
-makePicture :: State -> IO Picture
-makePicture (State view world _ _) = return $ viewTransform picture where
-	viewTransform = Scale scale scale . Translate (-vx view) (-vy view)
-	scale = min width height / zoom view
-	
-	picture = pictures $ [dispBackground] 
-		++ map dispLandmark (landmarks world)
-		++ [dispCamera (camera world)]
-		++ map dispFeature  (concatMap (\(_,_,f) -> f) (particles world))
-		
-
-handleEvent :: Event -> State -> IO State
-handleEvent event state
-
-	-- mouse control of the camera
-
-	| EventKey (MouseButton LeftButton) Down _ pt <- event
-	= return $ state { world = (world state) { 
-					camera = Camera (toWorld (view state) pt) 0 }   
-		    , leftButton = Just pt
-	        }
-	
-	| EventKey (MouseButton LeftButton) Up _ _ <- event
-	= do
-		let cam = camera (world state)
-		p <- (flip runRVar) DevURandom $ updateParticles 
-					(measurement cam (landmarks (world state)))
-					(particles (world state))
-					(const $ return cam)
-		return $ state
-			{ world = (world state) { particles = p }
-			, leftButton = Nothing
-			}
-	
-	| EventMotion (x,y) <- event
-	, State _ world _ (Just pt@(cx,cy)) <- state
-	= let cam = Camera (toWorld (view state) pt) (atan2 (x-cx) (y-cy)) in
-		return $  state { world = world { camera = cam } }
-	
-	-- Mouse control of the view
-
-	| EventMotion (x, y) <- event
-	, State (View  vx vy zoom) _ (Just (px, py)) _ <- state
-	= let 
-		dx = px-x; dy = py-y
-		scale = min width height / zoom in return $ 
-			state { view         = (View (vx+dx/scale) (vy+dy/scale) zoom)
-			      , viewMousePos = Just (x,y)
-			}
-
-	| EventKey (MouseButton RightButton) dir _ pt <- event
-	= return $ state {viewMousePos = if dir == Down then Just pt else Nothing}
-
-	| EventKey (MouseButton wheel) _ _ pt <- event
-	, View vx vy zoom' <- view state
-	= let -- This math zooms to cursor
-		(vx',vy') = toWorld (view state) pt
-		px        = (vx - vx') * dz + vx'
-		py        = (vy - vy') * dz + vy'
-		dz        = case wheel of 
-			WheelUp -> 0.8
-			WheelDown -> 1/0.8
-			otherwise -> 1
-	in return $ state { view = View px py $ zoom' * dz }
-	
-	-- keyboard controls
-	
-	| EventKey (Char 'x') Down _ _ <- event
-	= return state
-
-	| otherwise
-	= return state
-
-toWorld :: View -> Point -> Point
-toWorld (View x y z) (sx,sy) = ((sx/width) * z + x, (sy/height) * z + y)
-
--- | Not varying with time
-stepWorld :: Float -> State -> IO State
-stepWorld _ a = return a
+  let state0 = GameState (Running (V3 0 0 0) 0 (Euler 0 0 0)) (Set.empty) Nothing
+      setCam (GameState x _ _) = setCamera x
+      drawfun' x = return (drawfun x, Just None)
+  _ <- initThreads
+  playIO Nothing "play test" ts state0 drawfun' simfun setCam
+    (Just keyMouseCallback) (Just (motionCallback True)) (Just (motionCallback False))

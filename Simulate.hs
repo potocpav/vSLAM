@@ -1,24 +1,20 @@
 
-module Simulate (initial, measure, measurement) where
 
-import Feature
+module Simulate (initial, measurePoint, measurement) where
 
 import Data.Maybe (catMaybes)
+import Numeric.LinearAlgebra
+import Feature
+import SpatialMath
+import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
-initial :: IO [Point]
-initial = return [(0,0), (3,0)]
+initial :: IO [V3 Double]
+initial = return [V3 5 0 0, V3 0 0 5, V3 0 5 0, V3 5 5 5]
 
--- | perspective projection.
--- Near plane is at 1 and fov=90 degrees.
-measure :: Camera -> Point -> Maybe Float
-measure (Camera (cx, cy) phi) (px, py) = if y >= 1 && abs m <= 1
-			then Just m else Nothing where
-	m = x / y
-	(x,y) = rotate (-phi) (px - cx) (py - cy)
-	rotate a x y = (x*cos(a)+y*sin(a), -x*sin(a)+y*cos(a))
+measurePoint :: Camera -> V3 Double -> Maybe Measurement
+measurePoint (Camera cp cr) (V3 x y z) = Just m where
+	m = vec2euler $ trans cr <> ((3|> [x,y,z]) - cp)
 
--- | Gets the set of all measured features. Their number is smaller or equal,
--- than the number of all landmarks: not all are always in a camera's FOV.
-measurement :: Camera -> [Point] -> [Measurement]
-measurement cam pts = catMaybes $ map (measure cam) pts
+measurement :: Camera -> [V3 Double] -> [Measurement]
+measurement cam = catMaybes . map (measurePoint cam)
