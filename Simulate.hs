@@ -1,16 +1,16 @@
 
 
-module Simulate (initial, measurePoint, measurement) where
+module Simulate (landmarks, measurePoint, measurement) where
 
 import Data.Maybe (catMaybes)
 import Numeric.LinearAlgebra
 import Feature
-import SpatialMath
+import Linear
 import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
-initial :: IO [V3 Double]
-initial = return [V3 5 0 0, V3 0 0 5, V3 0 5 0, V3 5 5 5]
+landmarks :: [V3 Double]
+landmarks = [V3 5 0 0, V3 0 0 5, V3 0 5 0, V3 5 5 5]
 
 measurePoint :: Camera -> V3 Double -> Maybe Measurement
 measurePoint (Camera cp cr) (V3 x y z) = Just m where
