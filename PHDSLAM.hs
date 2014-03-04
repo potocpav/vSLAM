@@ -40,7 +40,7 @@ _P_D _ _ = 1 -- We see EEeeeverything :-)
 
 
 -- | TODO: tie this with the covariance, defined for the new features in EKF.hs
-measurement_cov = diag (2|> [0.1, 0.1])
+measurement_cov = diag (2|> [0.01, 0.01])
 
 
 -- | Compute the pdf of a multivariate normal distribution in the point m.

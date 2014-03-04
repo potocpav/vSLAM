@@ -16,5 +16,8 @@ measurePoint :: Camera -> V3 Double -> Maybe Measurement
 measurePoint (Camera cp cr) (V3 x y z) = Just m where
 	m = vec2euler $ trans cr <> ((3|> [x,y,z]) - cp)
 
-measurement :: Camera -> [V3 Double] -> [Measurement]
-measurement cam = catMaybes . map (measurePoint cam)
+measurement' :: Camera -> [V3 Double] -> [Measurement]
+measurement' cam = catMaybes . map (measurePoint cam)
+
+measurement :: Camera -> [Measurement]
+measurement = flip measurement' $ landmarks

@@ -15,7 +15,7 @@ import InternalMath
 -- | Could be dependent on the position of a measurement sensor.
 -- | TODO: tie this with the covariance, defined for observations in PHDSLAM.hs
 initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,0.1,0.1,0.5])
+initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 
 -- | TODO: check the correctness of this value (10 or 1 or other?)
 initialRho = 0.1

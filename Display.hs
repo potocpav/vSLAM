@@ -7,13 +7,14 @@ import Linear
 import SpatialMath ( Euler(..), rotateXyzAboutY, rotVecByEulerB2A, rotateXyzAboutX )
 import Graphics.X11 ( initThreads )
 import Vis
-import Graphics.UI.GLUT hiding ( Plane, Sphere, Points, Cube, motionCallback, samples )
+import Graphics.UI.GLUT hiding ( Plane, Sphere, Points, Cube, motionCallback, samples, initialize )
 import qualified Data.Set as Set
 import Control.Monad ( when )
 
 import Numeric.LinearAlgebra
 
 import InternalMath
+import EKF
 import Feature
 import Simulate
 
@@ -48,31 +49,31 @@ setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
 simfun :: Float -> GameState -> IO GameState
-simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) (Input keys lmp) ss) = do
+simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) (Input keys lmp) (SLAM cam fs)) = do
 	Size x y <- get windowSize
 	let 
 		x' = (fromIntegral x) `div` 2
 		y' = (fromIntegral y) `div` 2
 
 	when (Just (x',y') /= lmp) (pointerPosition $= (Position x' y'))
-	return $ GameState (Running (pos + (ts *^ v)) v euler0) 
-					   (Input keys (Just (x',y'))) 
-					   ss { camera = newcam (camera ss), features = features ss }
-	where
-		keyPressed k = Set.member (Char k) keys
-		newcam (Camera cp cr) = Camera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
-				rot = rotateYmat (rturn-lturn)
-				up    = if keyPressed 'u' then ts else 0
-				down  = if keyPressed 'e' then ts else 0
-				left  = if keyPressed 'n' then ts else 0
-				right = if keyPressed 'i' then ts else 0
-				lturn = if keyPressed 'l' then ts else 0
-				rturn = if keyPressed 'y' then ts else 0
-		v = rotateXyzAboutY (V3 (d-a) 0 (w-s)) yaw where
-				w = if keyPressed 'w' then 3 else 0
-				a = if keyPressed 'a' then 3 else 0
-				s = if keyPressed 'r' then 3 else 0
-				d = if keyPressed 's' then 3 else 0
+	return $ GameState 
+		(Running (pos + (ts *^ v)) v euler0) 
+		(Input keys (Just (x',y'))) 
+		(SLAM (newcam cam) (map (initialize cam) (measurement cam))) where -- | todo: kill delay
+			keyPressed k = Set.member (Char k) keys
+			newcam (Camera cp cr) = Camera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
+					rot = rotateYmat (rturn-lturn)
+					up    = if keyPressed 'u' then ts else 0
+					down  = if keyPressed 'e' then ts else 0
+					left  = if keyPressed 'n' then ts else 0
+					right = if keyPressed 'i' then ts else 0
+					lturn = if keyPressed 'l' then ts else 0
+					rturn = if keyPressed 'y' then ts else 0
+			v = rotateXyzAboutY (V3 (d-a) 0 (w-s)) yaw where
+					w = if keyPressed 'w' then 3 else 0
+					a = if keyPressed 'a' then 3 else 0
+					s = if keyPressed 'r' then 3 else 0
+					d = if keyPressed 's' then 3 else 0
 
 keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
 keyMouseCallback state0 key keystate _ _
@@ -99,7 +100,7 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) (Input 
 
 drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running _ _ _) _ (SLAM cam fs)) =
-	VisObjects $ [drawBackground, drawCamera cam] ++ map drawLandmark landmarks
+	VisObjects $ [drawBackground, drawCamera cam] ++ map drawLandmark landmarks ++ map drawFeature fs
    
 drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1)]
