@@ -62,7 +62,7 @@ jacobian (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
 -- | Initialize feature from a single measurement. Tuple contains mean theta and phi angles,
 -- relative to the robot (the bearing of an observed feature).
 -- TODO: implement the angle computations
-initialize :: Camera -> (Double, Double) -> Feature
+initialize :: Camera -> Measurement -> Feature
 initialize (Camera cpos crot) angles = Feature 
 		initialEta  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
 	h = euler2vec angles

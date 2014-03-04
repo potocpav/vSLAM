@@ -13,3 +13,7 @@ euler2vec :: (Double, Double) -> Vector Double
 euler2vec (theta, phi) = 3 |> [cos phi * sin theta, -sin phi, cos phi * cos theta]
 
 
+rotateYmat :: Double -> Matrix Double
+rotateYmat a = (3><3) [  cos a, 0, sin a
+					  ,      0, 1, 0
+					  , -sin a, 0, cos a ]
