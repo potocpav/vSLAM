@@ -18,10 +18,10 @@ initialCov :: Matrix Double
 initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 
 -- | TODO: check the correctness of this value (10 or 1 or other?)
-initialRho = 0.1
+initialRho = 0.2
 
 -- | The eta-value of newly-born features. It could "be arbitrarily small".
-initialEta = 0.1
+initialEta = 0.01
 
 --------------------------------------------------------------------------------
 

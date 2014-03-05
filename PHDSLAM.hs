@@ -58,7 +58,7 @@ normalDensity mu cov m = norm * exp e where
 predict :: Camera -> [Measurement] -> [Feature] -> (Camera -> RVar Camera) -> RVar (Camera, [Feature], Double)
 predict cam ms fs f = do
 	cam' <- f cam
-	let new_features = map (\a -> initialize cam' (undefined, undefined)) ms
+	let new_features = map (\a -> initialize cam' a) ms
 	let m_kk1 = sum $ map eta new_features
 	return (cam', new_features ++ fs, m_kk1)
 
