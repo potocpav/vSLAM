@@ -15,16 +15,9 @@ import Data.Random.Source.DevRandom
 import Numeric.LinearAlgebra
 
 import InternalMath
-import EKF
 import Feature
 import Simulate
 import PHDSLAM
-
--- for debugging
-import System.IO.Unsafe (unsafePerformIO)
-debug :: Show a => String -> a -> a
-debug s a = unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
-infixr 1 `debug`
 
 ts :: Double
 ts = 0.01
@@ -57,6 +50,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cam ps))
 		x' = (fromIntegral x) `div` 2
 		y' = (fromIntegral y) `div` 2
 	meas <- measurement cam
+	-- | Run the PHDSLAM routine
 	ps' <- if not (spacePressed input') then return ps else
 		(flip runRVar) DevURandom $ updateParticles 
 				meas

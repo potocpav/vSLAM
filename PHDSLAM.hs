@@ -1,3 +1,4 @@
+{-# Language BangPatterns #-}
 
 module PHDSLAM where
 
@@ -8,6 +9,7 @@ import Numeric.LinearAlgebra
 
 import Feature
 import EKF
+import InternalMath
 
 
 -- | Just a helper structure (could be a tuple instead).
@@ -36,7 +38,7 @@ _lambda_c = 0.1
 -- measured on the sensor in a certain position on projection plane
 -- TODO: get a correct value.
 _P_D :: Feature -> Camera -> Double
-_P_D _ _ = 1 -- We see EEeeeverything :-)
+_P_D _ _ = 1.0 -- We see EEeeeverything :-)
 
 
 -- | TODO: tie this with the covariance, defined for the new features in EKF.hs
@@ -121,15 +123,21 @@ updateParticle ms (w_k1, cam, fs) f = do
 	let (fs'', m_k) = mapUpdate cam' ms fs'
 	let w_k = (clutter_rate ^^ length ms * exp (m_k - m_kk1 - _lambda_c)) * w_k1
 	return (w_k, cam', fs'')
+	
+
+normalizeWeights :: [Particle] -> [Particle]
+normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
+	sumw = sum (map (\(w,_,_)->w) ss)
 
 
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
 updateParticles :: [Measurement] -> [Particle] -> (Camera -> RVar Camera) -> RVar [Particle]
-updateParticles ms ps f = resampleParticles <$> sequence (map (\p -> updateParticle ms p f) ps)
+updateParticles ms ps f = (resampleParticles.normalizeWeights) <$> 
+		sequence (map (\p -> updateParticle ms p f) ps)
 
 
 -- | Resampling step. This could use some improvement :-) Identity alias is
 -- clearly not this function's purpose...
 resampleParticles :: [Particle] -> [Particle]
-resampleParticles = id
+resampleParticles = map (\(n,(!a,!b,!c)) -> (("w"++show n)`debug`a,b,c)) . (zip [1..])
