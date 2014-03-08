@@ -20,8 +20,8 @@ data UpdateTerms = Terms
 	(Matrix Double) -- ^ P
 	
 
--- | The first number is particle weight
-type Particle = (Double, Camera, [Feature])
+-- | The first number is particle weight, second camera position sequence
+type Particle = (Double, [Camera], [Feature])
 
 
 -- | The probability of a false alarm on a sensor. As of now, it is independent 
@@ -57,9 +57,9 @@ normalDensity mu cov m = norm * exp e where
 -- It also propagates Camera position a step further, according to a probabilistic
 -- transition function supplied.
 -- The last return value is a number, that is needed in particle weighting routine.
-predict :: Camera -> [Measurement] -> [Feature] -> (Camera -> RVar Camera) -> RVar (Camera, [Feature], Double)
-predict cam ms fs f = do
-	cam' <- f cam
+predict :: [Camera] -> [Measurement] -> [Feature] -> ([Camera] -> RVar Camera) -> RVar (Camera, [Feature], Double)
+predict cams ms fs f = do
+	cam' <- f cams
 	let new_features = map (\a -> initialize cam' a) ms
 	let m_kk1 = sum $ map eta new_features
 	return (cam', new_features ++ fs, m_kk1)
@@ -117,14 +117,15 @@ mapUpdate cam ms fs = (prune detections, m_k') where
 
 
 -- | Zero-feature single-particle update routine.
-updateParticle :: [Measurement] -> Particle -> (Camera -> RVar Camera) -> RVar Particle
-updateParticle ms (w_k1, cam, fs) f = do
-	(cam', fs', m_kk1) <- predict cam ms fs f
+updateParticle :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
+updateParticle ms (w_k1, cams, fs) f = do
+	(cam', fs', m_kk1) <- predict cams ms fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
 	let w_k = (clutter_rate ^^ length ms * exp (m_k - m_kk1 - _lambda_c)) * w_k1
-	return (w_k, cam', fs'')
+	return (w_k, cam':cams, fs'')
 	
 
+-- | The sum of all weights is equal to 1.
 normalizeWeights :: [Particle] -> [Particle]
 normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
 	sumw = sum (map (\(w,_,_)->w) ss)
@@ -132,7 +133,7 @@ normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
 
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
-updateParticles :: [Measurement] -> [Particle] -> (Camera -> RVar Camera) -> RVar [Particle]
+updateParticles :: [Measurement] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
 updateParticles ms ps f = (resampleParticles.normalizeWeights) <$> 
 		sequence (map (\p -> updateParticle ms p f) ps)
 

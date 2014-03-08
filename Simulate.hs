@@ -1,16 +1,17 @@
 
 
-module Simulate (landmarks, measurement) where
+module Simulate (landmarks, measurement, camTransition) where
 
 import Data.Maybe (catMaybes)
 import Numeric.LinearAlgebra
+import Data.Random (RVar)
 import Feature
 import Linear
 import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
 landmarks :: [V3 Double]
-landmarks = [V3 5 0 0, V3 0 0 5, V3 0 (-1) 5, V3 5 5 5, V3 (-3) (-1.5) (-2), V3 (-3000) (-3000) 3000]
+landmarks = [V3 5 0 0, V3 0 0 5, V3 3 (-1) 3, V3 5 5 5, V3 (-3) (-1.5) (-2), V3 (-3000) (-3000) 3000]
 
 measurePoint :: Camera -> V3 Double -> Maybe Measurement
 measurePoint (Camera cp cr) (V3 x y z) = Just m where
@@ -24,3 +25,12 @@ measurement' cam = catMaybes . map (measurePoint cam)
 measurement :: Camera -> IO [Measurement]
 measurement cam = return $ measurement' cam (filter (\l -> distSq l cam >= 0) landmarks) where
 	distSq (V3 x1 y1 z1) (Camera c _) = (x1-c@>0)^^2 + (y1-c@>1)^^2 + (z1-c@>2)^^2
+
+
+-- | The first camera argument is the 'true' camera position, that the oracle
+-- told us. The cameras are the lists of positions in time (t:t-1:t-2:...).
+-- The 'true' camera input is one step more advanced (one item longer list),
+-- while the output is
+camTransition :: [Camera] -> [Camera] -> RVar Camera
+camTransition cams cs = return (head cams)
+

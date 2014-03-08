@@ -27,7 +27,8 @@ faceHeight = 1.5
 
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool }
-data SLAMState = SLAM { camera :: Camera, particles :: [Particle] }
+-- | The true camera position sequence, and particle set.
+data SLAMState = SLAM { cameras :: [Camera], particles :: [Particle] }
 
 data GameState = GameState { observer :: ObserverState
                            , input :: InputState
@@ -44,25 +45,30 @@ setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
 simfun :: Float -> GameState -> IO GameState
-simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cam ps)) = do
+simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams ps)) = do
 	Size x y <- get windowSize
 	let 
 		x' = (fromIntegral x) `div` 2
 		y' = (fromIntegral y) `div` 2
-	meas <- measurement cam
+	meas <- measurement (head cams)
 	-- | Run the PHDSLAM routine
 	ps' <- if not (spacePressed input') then return ps else
 		(flip runRVar) DevURandom $ updateParticles 
 				meas
 				ps
-				(const $ return cam)
+				(camTransition cams)
 
+	
+	-- | if space pressed, then copy the first camera. This has to be -after-
+	-- the PHDSLAM routine.
+	let cams' = if spacePressed input' then head cams:cams else cams
+		
 	when (Just (x',y') /= lastMousePos input') (pointerPosition $= (Position x' y'))
 
 	return $ GameState 
 		(Running (pos + (ts *^ v)) v euler0) 
 		input' { lastMousePos = Just (x',y'), spacePressed = False }
-		(SLAM (newcam cam) ps') where -- | todo: kill delay
+		(SLAM ((newcam $ head cams'):tail cams') ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			newcam (Camera cp cr) = Camera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
 					rot = rotateYmat ((rturn-lturn)*ts)
@@ -103,8 +109,8 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
     
 
 drawfun :: GameState -> VisObject Double
-drawfun (GameState (Running _ _ _) _ (SLAM cam ps)) =
-	VisObjects $ [drawBackground, drawCamera cam] ++ map drawLandmark landmarks ++ 
+drawfun (GameState (Running _ _ _) _ (SLAM cams ps)) =
+	VisObjects $ [drawBackground, drawCameras cams] ++ map drawLandmark landmarks ++ 
 		map drawFeature (if null ps then [] else (\(_,_,a) -> a) (head ps))
    
 drawBackground :: VisObject Double
@@ -118,14 +124,17 @@ drawFeature f = Points (map vec2v3 (take (round $ eta f * 500) $ samples f 11)) 
 drawLandmark :: V3 Double -> VisObject Double
 drawLandmark l = Trans l $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
-drawCamera :: Camera -> VisObject Double
-drawCamera (Camera cp cr) = Trans (v2V cp) $ VisObjects 
-		[ Cube 0.2 Wireframe color'
-		, Arrow (0.5, 20) (v2V $ cr <> (3|> [0,0,1])) color'
-		] where
+drawCameras :: [Camera] -> VisObject Double
+drawCameras [] = VisObjects []
+drawCameras (Camera cp cr:cs) = VisObjects $
+	Line (v2V cp : map (\(Camera p _) -> v2V p) cs) color' : [drawCam]
+		 where
+			drawCam = Trans (v2V cp) $ VisObjects 
+					[ Cube 0.2 Wireframe color'
+					, Arrow (0.5, 20) (v2V $ cr <> (3|> [0,0,1])) color' ]
 			v2V v = V3 (v@>0) (v@>1) (v@>2)
 			color' = makeColor 0 0.7 0 1
-			
+
 	
 main :: IO ()
 main = do
@@ -133,7 +142,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
 				(Input (Set.empty) Nothing False)
-				(SLAM (Camera (3|> repeat 0) (ident 3)) [(1, undefined, [])])
+				(SLAM [Camera (3|> repeat 0) (ident 3)] [(0.5, [], []),(0.5, [], [])])
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
