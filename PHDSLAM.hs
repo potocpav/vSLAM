@@ -5,6 +5,7 @@ module PHDSLAM where
 import Control.Exception (assert)
 import Control.Applicative ((<$>))
 import Data.Random (RVar)
+import Data.Random.Distribution.Categorical
 import Numeric.LinearAlgebra
 
 import Feature
@@ -61,7 +62,7 @@ predict :: [Camera] -> [Measurement] -> [Feature] -> ([Camera] -> RVar Camera) -
 predict cams ms fs f = do
 	cam' <- f cams
 	let new_features = map (\a -> initialize cam' a) ms
-	let m_kk1 = sum $ map eta new_features
+	let m_kk1 = sum $ map eta (new_features ++ fs)
 	return (cam', new_features ++ fs, m_kk1)
 
 
@@ -121,7 +122,7 @@ updateParticle :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar
 updateParticle ms (w_k1, cams, fs) f = do
 	(cam', fs', m_kk1) <- predict cams ms fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
-	let w_k = (clutter_rate ^^ length ms * exp (m_k - m_kk1 - _lambda_c)) * w_k1
+	let w_k = "w_k" `debug` (clutter_rate ^^ length ms * exp ((m_k) - (m_kk1) - (_lambda_c))) * w_k1
 	return (w_k, cam':cams, fs'')
 	
 
@@ -134,11 +135,14 @@ normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
 updateParticles :: [Measurement] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
-updateParticles ms ps f = (resampleParticles.normalizeWeights) <$> 
+updateParticles ms ps f = resampleParticles =<< normalizeWeights <$> 
 		sequence (map (\p -> updateParticle ms p f) ps)
 
 
 -- | Resampling step. This could use some improvement :-) Identity alias is
 -- clearly not this function's purpose...
-resampleParticles :: [Particle] -> [Particle]
-resampleParticles = map (\(n,(!a,!b,!c)) -> (("w"++show n)`debug`a,b,c)) . (zip [1..])
+resampleParticles :: [Particle] -> RVar [Particle]
+resampleParticles ps =  sequence . replicate len . categorical 
+		$ map (\(w,r,t)->(w,(w {-1/fromIntegral len-},r,t))) ps where
+		len = length ps
+

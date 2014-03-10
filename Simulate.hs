@@ -5,6 +5,7 @@ module Simulate (landmarks, measurement, camTransition) where
 import Data.Maybe (catMaybes)
 import Numeric.LinearAlgebra
 import Data.Random (RVar)
+import Data.Random.Distribution.Normal
 import Feature
 import Linear
 import InternalMath
@@ -30,7 +31,16 @@ measurement cam = return $ measurement' cam (filter (\l -> distSq l cam >= 0) la
 -- | The first camera argument is the 'true' camera position, that the oracle
 -- told us. The cameras are the lists of positions in time (t:t-1:t-2:...).
 -- The 'true' camera input is one step more advanced (one item longer list),
--- while the output is
+-- than the second argument.
 camTransition :: [Camera] -> [Camera] -> RVar Camera
-camTransition cams cs = return (head cams)
+camTransition [] c = undefined
+camTransition (c1:[]) [] = return c1 where
+	canonicalCam = Camera (3|>repeat 0) (ident 3)
+camTransition (Camera cp2 cr2:Camera cp1 cr1:_) ((Camera cp cr):_) = do
+	[xdev,zdev,wdev] <- sequence . take 3 $ repeat stdNormal
+	let posdev = 3|> [xdev*0.0,0,zdev*0.0]
+	let thetadev = wdev * 0.1
+	return $ Camera (cp + movement + posdev) (cr <> rotation <> rotateYmat thetadev) where
+		(movement, rotation) = (cp2 - cp1, cr2 <> trans cr1)
+
 

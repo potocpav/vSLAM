@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
-module Main ( main
-            ) where
+-- module Main ( main ) where
 
 import Linear
 import SpatialMath ( Euler(..), rotateXyzAboutY, rotVecByEulerB2A, rotateXyzAboutX )
@@ -109,9 +108,16 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
     
 
 drawfun :: GameState -> VisObject Double
-drawfun (GameState (Running _ _ _) _ (SLAM cams ps)) =
-	VisObjects $ [drawBackground, drawCameras cams] ++ map drawLandmark landmarks ++ 
-		map drawFeature (if null ps then [] else (\(_,_,a) -> a) (head ps))
+drawfun (GameState (Running _ _ _) _ (SLAM cams ps)) = VisObjects $ 
+	[drawBackground, drawCameras (makeColor 0 1 0 1) cams] 
+	++ map drawParticle ps
+	++ map drawLandmark landmarks 
+	++ map drawFeature (if null ps then [] else mergeMaps ps)
+   
+mergeMaps :: [Particle] -> [Feature]
+mergeMaps [] = []
+mergeMaps ((w, _, fs):ps) = map (scaleWeight w) fs ++ mergeMaps ps where
+	scaleWeight w' f = f { eta = eta f * w' }
    
 drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
@@ -121,19 +127,21 @@ drawFeature :: Feature -> VisObject Double
 drawFeature f = Points (map vec2v3 (take (round $ eta f * 500) $ samples f 11)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
+drawParticle :: Particle -> VisObject Double
+drawParticle (w, cs, _) = drawCameras  (makeColor 1 (realToFrac w*4) (realToFrac w*4) 1) cs
+	
 drawLandmark :: V3 Double -> VisObject Double
 drawLandmark l = Trans l $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
-drawCameras :: [Camera] -> VisObject Double
-drawCameras [] = VisObjects []
-drawCameras (Camera cp cr:cs) = VisObjects $
+drawCameras :: Vis.Color -> [Camera] -> VisObject Double
+drawCameras _ [] = VisObjects []
+drawCameras color' (Camera cp cr:cs) = VisObjects $
 	Line (v2V cp : map (\(Camera p _) -> v2V p) cs) color' : [drawCam]
 		 where
 			drawCam = Trans (v2V cp) $ VisObjects 
 					[ Cube 0.2 Wireframe color'
 					, Arrow (0.5, 20) (v2V $ cr <> (3|> [0,0,1])) color' ]
 			v2V v = V3 (v@>0) (v@>1) (v@>2)
-			color' = makeColor 0 0.7 0 1
 
 	
 main :: IO ()
@@ -142,7 +150,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
 				(Input (Set.empty) Nothing False)
-				(SLAM [Camera (3|> repeat 0) (ident 3)] [(0.5, [], []),(0.5, [], [])])
+				(SLAM [Camera (3|> repeat 0) (ident 3)] (replicate 40 (0.1, [], []) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
