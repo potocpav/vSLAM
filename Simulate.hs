@@ -38,7 +38,7 @@ camTransition (c1:[]) [] = return c1 where
 	canonicalCam = Camera (3|>repeat 0) (ident 3)
 camTransition (Camera cp2 cr2:Camera cp1 cr1:_) ((Camera cp cr):_) = do
 	[xdev,zdev,wdev] <- sequence . take 3 $ repeat stdNormal
-	let posdev = 3|> [xdev*0.0,0,zdev*0.0]
+	let posdev = 3|> [xdev*0.1,0,zdev*0.1]
 	let thetadev = wdev * 0.1
 	return $ Camera (cp + movement + posdev) (cr <> rotation <> rotateYmat thetadev) where
 		(movement, rotation) = (cp2 - cp1, cr2 <> trans cr1)

@@ -29,7 +29,7 @@ type Particle = (Double, [Camera], [Feature])
 -- of Measurement. We will see if it is cool or not.
 -- If it is independent, then it is probably equal to lambda_c
 clutter_rate :: Double
-clutter_rate = 0.1
+clutter_rate = 1
 
 -- | TODO: get a correct value.
 _lambda_c = 0.1
@@ -43,7 +43,7 @@ _P_D _ _ = 1.0 -- We see EEeeeverything :-)
 
 
 -- | TODO: tie this with the covariance, defined for the new features in EKF.hs
-measurement_cov = diag (2|> [0.01, 0.01])
+measurement_cov = diag (2|> [0.003, 0.003])
 
 
 -- | Compute the pdf of a multivariate normal distribution in the point m.
@@ -143,6 +143,11 @@ updateParticles ms ps f = resampleParticles =<< normalizeWeights <$>
 -- clearly not this function's purpose...
 resampleParticles :: [Particle] -> RVar [Particle]
 resampleParticles ps =  sequence . replicate len . categorical 
-		$ map (\(w,r,t)->(w,(w {-1/fromIntegral len-},r,t))) ps where
+		$ map (\(w,r,t)->(w,(1/fromIntegral len,r,t))) ps where
 		len = length ps
 
+{-
+resampleParticles' :: [Particle] -> RVar [Particle]
+resampleParticles' ps = return $ resample' 0 ps
+	resample' :: Double -> [Particle] -> [Particle]
+	resample' r ps =  -}

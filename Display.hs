@@ -112,7 +112,7 @@ drawfun (GameState (Running _ _ _) _ (SLAM cams ps)) = VisObjects $
 	[drawBackground, drawCameras (makeColor 0 1 0 1) cams] 
 	++ map drawParticle ps
 	++ map drawLandmark landmarks 
-	++ map drawFeature (if null ps then [] else mergeMaps ps)
+	++ zipWith drawFeature [1..] (if null ps then [] else mergeMaps ps)
    
 mergeMaps :: [Particle] -> [Feature]
 mergeMaps [] = []
@@ -123,8 +123,9 @@ drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
 	Line [V3 0 0 0, V3 (-3000) (-3000) 3000] (makeColor 0 0 1 1)]
 
-drawFeature :: Feature -> VisObject Double
-drawFeature f = Points (map vec2v3 (take (round $ eta f * 500) $ samples f 11)) (Just 3) (makeColor 0 0 0 1) where
+-- | Takes the seed as an argument.
+drawFeature :: Int -> Feature -> VisObject Double
+drawFeature seed f = Points (map vec2v3 (take (round $ eta f * 500) $ samples f seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
 drawParticle :: Particle -> VisObject Double
