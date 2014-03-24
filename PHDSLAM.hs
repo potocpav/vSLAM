@@ -4,6 +4,7 @@ module PHDSLAM where
 
 import Control.Exception (assert)
 import Control.Applicative ((<$>))
+import Control.Monad (when)
 import Data.Random (RVar)
 import Data.Random.Distribution.Categorical
 import Numeric.LinearAlgebra
@@ -43,14 +44,14 @@ _P_D _ _ = 1.0 -- We see EEeeeverything :-)
 
 
 -- | TODO: tie this with the covariance, defined for the new features in EKF.hs
-measurement_cov = diag (2|> [0.003, 0.003])
+measurement_cov = diag (2|> [0.01, 0.01])
 
 
 -- | Compute the pdf of a multivariate normal distribution in the point m.
 normalDensity :: Vector Double -> Matrix Double -> Vector Double -> Double
 normalDensity mu cov m = norm * exp e where 
 	norm = (2*pi)**(-(fromIntegral$dim mu)/2) * (det cov)**(-0.5)
-	e = ((-0.5) * unpack (asRow(m-mu) <> inv cov <> asColumn(m-mu)))
+	e = (-0.5) * unpack (asRow(m-mu) <> inv cov <> asColumn(m-mu))
 	unpack m = assert (rows m == 1 && cols m == 1) $ m @@> (0,0)
 
 
@@ -73,13 +74,13 @@ missedDetections cam =
 
 -- | Tail-recursive routine, producing the terms needed for the EKF update.
 updateTerms :: Camera -> [Feature] -> [UpdateTerms]
-updateTerms cam (f@(Feature _ mu cov):fs) = Terms _z' _S _K _P : updateTerms cam fs where
+updateTerms cam (Feature _ mu cov:fs) = Terms _z' _S _K _P : updateTerms cam fs where
 	_z' = measure cam mu
 	_H = jacobian cam mu
 	_S = _H <> cov <> trans _H + measurement_cov
 	_K = cov <> trans _H <> inv _S
-	_P = (ident 6 - _K <> _H) * cov	
-updateTerms _ _ = []
+	_P = (ident 6 - _K <> _H) <> cov	
+updateTerms _ [] = []
 
 
 -- | Merging and pruning operations.
@@ -122,32 +123,62 @@ updateParticle :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar
 updateParticle ms (w_k1, cams, fs) f = do
 	(cam', fs', m_kk1) <- predict cams ms fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
-	let w_k = "w_k" `debug` (clutter_rate ^^ length ms * exp ((m_k) - (m_kk1) - (_lambda_c))) * w_k1
+	let w_k = ((clutter_rate ^^ length ms) * exp ((m_k) - (m_kk1) - (_lambda_c))) * w_k1
 	return (w_k, cam':cams, fs'')
 	
-
--- | The sum of all weights is equal to 1.
+-- | Single-feature single-particle update routine.
+-- TODO: Implement.
+updateParticle1 :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
+updateParticle1 ms (w_k1, cams, fs) f = do
+	(cam', fs', m_kk1) <- predict cams ms fs f
+	let (fs'', m_k) = mapUpdate cam' ms fs'
+	
+	let chosen = getBiggest Nothing fs'' where
+		getBiggest :: Maybe Feature -> [Feature] -> Feature
+		getBiggest Nothing (f:fs) = getBiggest (Just f) fs
+		getBiggest (Just m) (f:fs) = getBiggest (Just (if eta m > eta f then m else f)) fs
+		getBiggest (Just m) [] = m
+		
+	let w_k = a/b * w_k1 where
+		a = undefined
+		b = undefined
+		
+	return (w_k, cams, fs)
+	
+-- | The sum of all weights is made to be equal to 1.
 normalizeWeights :: [Particle] -> [Particle]
 normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
-	sumw = sum (map (\(w,_,_)->w) ss)
+		sumw = sum (map (\(w,_,_)->w) ss)
 
 
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
 updateParticles :: [Measurement] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
-updateParticles ms ps f = resampleParticles =<< normalizeWeights <$> 
-		sequence (map (\p -> updateParticle ms p f) ps)
+updateParticles ms ps f = (if (needResampling ps) then resampleParticles else return) 
+	=<< normalizeWeights <$> sequence (map (\p -> updateParticle ms p f) ps)
 
 
--- | Resampling step. This could use some improvement :-) Identity alias is
--- clearly not this function's purpose...
+-- | Get the number of effective particles and resample, if it is lower than the treshold.
+-- needResampling :: [Particle] -> Bool
+needResampling ps = debug "Eff.no.of.particles" (1 / sum (map (\(w,_,_) -> w*w) ps)) < treshold where
+	treshold = 10
+
+-- | Resampling step. It draws in random from the particle pool
 resampleParticles :: [Particle] -> RVar [Particle]
 resampleParticles ps =  sequence . replicate len . categorical 
-		$ map (\(w,r,t)->(w,(1/fromIntegral len,r,t))) ps where
-		len = length ps
+	$ map (\(w,r,t)->(w,(1/fromIntegral len,r,t))) ps where
+	len = length ps
 
-{-
+-- | Recursively resample the particles. The particle weights are put one
+-- after another to fill the unit interval, then the particles are chosen
+-- by equally-spaced points (with spacing (1/length ps)) in the interval.
 resampleParticles' :: [Particle] -> RVar [Particle]
-resampleParticles' ps = return $ resample' 0 ps
+resampleParticles' pp = return $ resample' (n/2) pp where
+	n = 1 / fromIntegral (length pp)
+	-- | First argument is the position of the next sampling point in the unit interval
 	resample' :: Double -> [Particle] -> [Particle]
-	resample' r ps =  -}
+	resample' _ [] = []
+	resample' i ((w,r,t):ps) = if i < w 
+			then (n,r,t) : resample' (i+n) ((w,r,t):ps)
+			else resample' (i-w) ps
+

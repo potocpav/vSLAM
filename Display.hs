@@ -25,7 +25,7 @@ faceHeight :: Double
 faceHeight = 1.5
 
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
-data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool }
+data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
 -- | The true camera position sequence, and particle set.
 data SLAMState = SLAM { cameras :: [Camera], particles :: [Particle] }
 
@@ -61,12 +61,23 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams ps)
 	-- | if space pressed, then copy the first camera. This has to be -after-
 	-- the PHDSLAM routine.
 	let cams' = if spacePressed input' then head cams:cams else cams
+	when (xPressed input') $ do
+		let lastCam = head $ (\(_,a,_) -> a) (head ps)
+		print lastCam
+		meas' <- measurement lastCam
+		newParticle <- (flip runRVar) DevURandom $ (\ms ps f -> sequence (map (\p -> updateParticle ms p f) ps))
+				meas'
+				ps
+				(camTransition cams)
+		--- sequence $ map (putStrLn.show) ((\(_,_,t)->t) (head ps))
+		print $ (\(w,_,_) -> w) (head newParticle)
+		return ()
 		
 	when (Just (x',y') /= lastMousePos input') (pointerPosition $= (Position x' y'))
 
 	return $ GameState 
 		(Running (pos + (ts *^ v)) v euler0) 
-		input' { lastMousePos = Just (x',y'), spacePressed = False }
+		input' { lastMousePos = Just (x',y'), spacePressed = False, xPressed = False }
 		(SLAM ((newcam $ head cams'):tail cams') ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			newcam (Camera cp cr) = Camera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
@@ -86,7 +97,8 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams ps)
 keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
 keyMouseCallback state0 key keystate _ _
 	| keystate == Down = state0 {input = (input state0) {keySet = Set.insert key (keySet $ input state0), 
-		spacePressed = (key == Char ' ')}}
+		spacePressed = (key == Char ' '),
+		xPressed = (key == Char 'x')}}
 	| keystate == Up   = state0 {input = (input state0) {keySet = Set.delete key (keySet $ input state0)}}
 	| otherwise        = state0
 
@@ -125,7 +137,7 @@ drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
 
 -- | Takes the seed as an argument.
 drawFeature :: Int -> Feature -> VisObject Double
-drawFeature seed f = Points (map vec2v3 (take (round $ eta f * 500) $ samples f seed)) (Just 3) (makeColor 0 0 0 1) where
+drawFeature seed f = Points (map vec2v3 (take (round $ eta f * 100) $ samples f seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
 drawParticle :: Particle -> VisObject Double
@@ -150,8 +162,8 @@ main = do
 	let 
 		state0 = GameState 
 				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
-				(Input (Set.empty) Nothing False)
-				(SLAM [Camera (3|> repeat 0) (ident 3)] (replicate 40 (0.1, [], []) ))
+				(Input (Set.empty) Nothing False False)
+				(SLAM [Camera (3|> repeat 0) (ident 3)] (replicate 1 (1, [], []) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
