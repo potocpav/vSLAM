@@ -13,8 +13,7 @@ import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
 landmarks :: [V3 Double]
-landmarks = [V3 (0) (0) (5) , V3 (0) (-1) (5)]
-	{-
+landmarks = {- [V3 (0) (0) (5) , V3 (0) (-5) (5)] -}
 	[ V3 ( -2.959143) (2.953925) (-11.797375)
 	, V3 (-5.079667) (-3.711716) (3.123566)
 	, V3 (-5.767245) (6.669867) (5.087771)
@@ -36,7 +35,7 @@ landmarks = [V3 (0) (0) (5) , V3 (0) (-1) (5)]
 	, V3 (-0.813799) (-7.208116) (1.159423)
 	, V3 (-2.377635) (3.052709) (-6.112094)
 	]
--}
+
 {- [V3 5 0 0, V3 0 0 5, V3 0 1 5, V3 5 5 5, V3 (-3) (-1.5) (-2) {-, V3 (-3000) (-3000) 3000-}] -}
 
 measurePoint :: Camera -> V3 Double -> RVar Measurement
@@ -65,9 +64,9 @@ camTransition [] c = undefined
 camTransition (c1:[]) [] = return c1
 camTransition (Camera cp2 cr2:Camera cp1 cr1:_) ((Camera cp cr):_) = do
 	[xdev,zdev,wdev] <- sequence . take 3 $ repeat stdNormal
-	let posdev = 3|> [xdev*0.0,0,zdev*0.0]
+	let posdev = 3|> [xdev*0.2,0,zdev*0.2]
 	let thetadev = wdev * 0.0
-	return $ Camera (cp + movement + posdev) (cr <> rotation <> rotateYmat thetadev) where
+	return $ Camera (cp + movement*0 + posdev) (cr {- <> rotation -} <> rotateYmat thetadev) where
 		(movement, rotation) = (cp2 - cp1, cr2 <> trans cr1)
 
 

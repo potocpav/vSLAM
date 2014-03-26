@@ -29,7 +29,7 @@ type Particle = (Double, [Camera], [Feature])
 -- of Measurement. We will see if it is cool or not.
 -- If it is independent, then it is probably equal to lambda_c
 clutter_rate :: Double
-clutter_rate = 1
+clutter_rate = 0.5
 
 -- | TODO: get a correct value.
 _lambda_c = 0.1
@@ -95,7 +95,7 @@ detection cam u m f = normalize $ detection' u m f where
 
 	normalize :: [Feature] -> [Feature]
 	normalize fs = map (\(Feature tau mu cov) -> Feature (tau / sumf) mu cov) fs where
-		sumf = clutter_rate + sum (map eta fs)
+		sumf = clutter_rate + ("sum"`debug`sum (map eta fs))
 	
 	-- | Function, that outputs Features with not-normalized weights tau'.
 	detection' :: [UpdateTerms] -> Measurement -> [Feature] -> [Feature]
@@ -120,12 +120,13 @@ mapUpdate cam ms fs = (prune detections, m_k') where
 
 
 -- | Zero-feature single-particle update routine.
-updateParticle :: [[Measurement]] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
-updateParticle (m@(ms:_)) (w_k1, cams, fs) f = do
+updateParticle0 :: [[Measurement]] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
+updateParticle0 (m@(ms:_)) (w_k1, cams, fs) f = do
 	(cam', fs', m_kk1) <- predict cams m fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
 	let w_k = ((clutter_rate ^^ length ms) * exp ((m_k) - (m_kk1) - (_lambda_c))) * w_k1
 	return (w_k, cam':cams, fs'')
+	
 	
 -- | Single-feature single-particle update routine.
 -- TODO: Implement.
@@ -141,26 +142,29 @@ updateParticle1 (m@(ms:_)) (w_k1, cams, fs) f = do
 		getBiggest (Just m) [] = m
 		
 	let w_k = a/b * w_k1 where
-		a = undefined
-		b = undefined
+		a = (1 - _P_D undefined undefined)*(clutter_rate ^^ length ms) +
+			_P_D undefined undefined * undefined
+		b = (clutter_rate ^^ length ms)
 		
 	return (w_k, cams, fs)
 	
--- | The sum of all weights is made to be equal to 1.
-normalizeWeights :: [Particle] -> [Particle]
-normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
-		sumw = sum (map (\(w,_,_)->w) ss)
 
 
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
 updateParticles :: [[Measurement]] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
 updateParticles mss ps f = do
-	ups <- sequence (map (\p -> updateParticle mss p f) ps)
+	ups <- sequence (map (\p -> updateParticle0 mss p f) ps)
 	let unps = normalizeWeights ups
 	when (needResampling unps) resampleParticles' $ unps where
 		when b f = if b then f else return
 
+
+-- | The sum of all weights is made to be equal to 1.
+normalizeWeights :: [Particle] -> [Particle]
+normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
+		sumw = sum (map (\(w,_,_)->w) ss)
+		
 
 -- | Get the number of effective particles and resample, if it is lower than the treshold.
 -- needResampling :: [Particle] -> Bool

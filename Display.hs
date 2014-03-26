@@ -66,7 +66,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 		let lastCam = head $ (\(_,a,_) -> a) (head ps)
 		print lastCam
 		meas' <- measurement lastCam
-		newParticle <- (flip runRVar) DevURandom $ (\ms ps f -> sequence (map (\p -> updateParticle ms p f) ps))
+		newParticle <- (flip runRVar) DevURandom $ (\ms ps f -> sequence (map (\p -> updateParticle0 ms p f) ps))
 				(meas':mss)
 				ps
 				(camTransition cams)
@@ -125,12 +125,20 @@ drawfun (GameState (Running _ _ _) _ (SLAM cams _ ps)) = VisObjects $
 	[drawBackground, drawCameras (makeColor 0 1 0 1) cams] 
 	++ map drawParticle ps
 	++ map drawLandmark landmarks 
-	++ zipWith drawFeature [1..] (if null ps then [] else mergeMaps ps)
+	++ zipWith drawFeature [1..] (if null ps then [] else mergeMapsMAP ps)
    
-mergeMaps :: [Particle] -> [Feature]
-mergeMaps [] = []
-mergeMaps ((w, _, fs):ps) = map (scaleWeight w) fs ++ mergeMaps ps where
+-- | Weighted average of map estimates
+mergeMapsEAP :: [Particle] -> [Feature]
+mergeMapsEAP [] = []
+mergeMapsEAP ((w, _, fs):ps) = map (scaleWeight w) fs ++ mergeMapsMAP ps where
 	scaleWeight w' f = f { eta = eta f * w' }
+	
+-- | The map estimate of the particle with max weight
+mergeMapsMAP :: [Particle] -> [Feature]
+mergeMapsMAP [] = []
+mergeMapsMAP ps = (\(_,_,fs) -> fs) max_feature where
+	max_feature :: Particle
+	max_feature = foldl (\(w,a,b) (x,c,d) -> if w>x then (w,a,b) else (x,c,d)) (0,undefined,undefined) ps
    
 drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
@@ -164,7 +172,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 1 (1, [], []) ))
+				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 20 (1, [], []) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
