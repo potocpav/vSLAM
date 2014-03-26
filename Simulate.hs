@@ -4,15 +4,17 @@ module Simulate (landmarks, measurement, camTransition) where
 
 import Data.Maybe (catMaybes)
 import Numeric.LinearAlgebra
-import Data.Random (RVar)
+import Data.Random (RVar, runRVar)
 import Data.Random.Distribution.Normal
+import Data.Random.Source.DevRandom
 import Feature
 import Linear
 import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
 landmarks :: [V3 Double]
-landmarks =
+landmarks = [V3 (0) (0) (5) , V3 (0) (-1) (5)]
+	{-
 	[ V3 ( -2.959143) (2.953925) (-11.797375)
 	, V3 (-5.079667) (-3.711716) (3.123566)
 	, V3 (-5.767245) (6.669867) (5.087771)
@@ -34,21 +36,24 @@ landmarks =
 	, V3 (-0.813799) (-7.208116) (1.159423)
 	, V3 (-2.377635) (3.052709) (-6.112094)
 	]
-
+-}
 {- [V3 5 0 0, V3 0 0 5, V3 0 1 5, V3 5 5 5, V3 (-3) (-1.5) (-2) {-, V3 (-3000) (-3000) 3000-}] -}
 
-measurePoint :: Camera -> V3 Double -> Maybe Measurement
-measurePoint (Camera cp cr) (V3 x y z) = Just m where
-	m = vec2euler $ trans cr <> ((3|> [x,y,z]) - cp)
+measurePoint :: Camera -> V3 Double -> RVar Measurement
+measurePoint (Camera cp cr) (V3 x y z) = do
+	let (phi,theta) = vec2euler $ trans cr <> ((3|> [x,y,z]) - cp)
+	phi' <- stdNormal
+	theta' <- stdNormal
+	return (phi+phi'*0.01, theta+theta'*0.01)
 
 -- | Measure the given landmarks, with an infinite precision.
-measurement' :: Camera -> [V3 Double] -> [Measurement]
-measurement' cam = catMaybes . map (measurePoint cam)
+measurement' :: Camera -> [V3 Double] -> RVar [Measurement]
+measurement' cam = sequence . map (measurePoint cam)
 
 -- | Measure the landmarks, defined in this file, with a finite precission (additive gaussian noise).
 measurement :: Camera -> IO [Measurement]
-measurement cam = return $ measurement' cam (filter (\l -> distSq l cam >= 0) landmarks) where
-	distSq (V3 x1 y1 z1) (Camera c _) = (x1-c@>0)^^2 + (y1-c@>1)^^2 + (z1-c@>2)^^2
+measurement cam = runRVar (measurement' cam landmarks) DevURandom
+		
 
 
 -- | The first camera argument is the 'true' camera position, that the oracle
@@ -57,8 +62,7 @@ measurement cam = return $ measurement' cam (filter (\l -> distSq l cam >= 0) la
 -- than the second argument.
 camTransition :: [Camera] -> [Camera] -> RVar Camera
 camTransition [] c = undefined
-camTransition (c1:[]) [] = return c1 where
-	canonicalCam = Camera (3|>repeat 0) (ident 3)
+camTransition (c1:[]) [] = return c1
 camTransition (Camera cp2 cr2:Camera cp1 cr1:_) ((Camera cp cr):_) = do
 	[xdev,zdev,wdev] <- sequence . take 3 $ repeat stdNormal
 	let posdev = 3|> [xdev*0.0,0,zdev*0.0]

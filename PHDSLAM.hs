@@ -4,7 +4,6 @@ module PHDSLAM where
 
 import Control.Exception (assert)
 import Control.Applicative ((<$>))
-import Control.Monad (when)
 import Data.Random (RVar)
 import Data.Random.Distribution.Categorical
 import Numeric.LinearAlgebra
@@ -40,7 +39,7 @@ _lambda_c = 0.1
 -- measured on the sensor in a certain position on projection plane
 -- TODO: get a correct value.
 _P_D :: Feature -> Camera -> Double
-_P_D _ _ = 1.0 -- We see EEeeeverything :-)
+_P_D _ _ = 1 -- We see most landmarks :-)
 
 
 -- | TODO: tie this with the covariance, defined for the new features in EKF.hs
@@ -59,10 +58,12 @@ normalDensity mu cov m = norm * exp e where
 -- It also propagates Camera position a step further, according to a probabilistic
 -- transition function supplied.
 -- The last return value is a number, that is needed in particle weighting routine.
-predict :: [Camera] -> [Measurement] -> [Feature] -> ([Camera] -> RVar Camera) -> RVar (Camera, [Feature], Double)
-predict cams ms fs f = do
+predict :: [Camera] -> [[Measurement]] -> [Feature] -> ([Camera] -> RVar Camera) -> RVar (Camera, [Feature], Double)
+predict cams (m:[]) fs f = predict cams (m:[[]]) fs f
+predict cams (m@(_:ms:_)) fs f = do
+	-- | initialize using the old position and measurements
+	let new_features = map (\a -> initialize (head cams) a) ms
 	cam' <- f cams
-	let new_features = map (\a -> initialize cam' a) ms
 	let m_kk1 = sum $ map eta (new_features ++ fs)
 	return (cam', new_features ++ fs, m_kk1)
 
@@ -103,7 +104,7 @@ detection cam u m f = normalize $ detection' u m f where
 		tau' = _P_D f cam * eta f * (normalDensity (m2v _z') _S (m2v m))
 		mu' = mu f + _K <> (m2v m - m2v _z')
 		cov' = _P
-		in  Feature tau' mu' cov' : detection' rest m fs
+		in Feature tau' mu' cov' : detection' rest m fs
 	detection' [] _ [] = []
 	
 
@@ -119,18 +120,18 @@ mapUpdate cam ms fs = (prune detections, m_k') where
 
 
 -- | Zero-feature single-particle update routine.
-updateParticle :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
-updateParticle ms (w_k1, cams, fs) f = do
-	(cam', fs', m_kk1) <- predict cams ms fs f
+updateParticle :: [[Measurement]] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
+updateParticle (m@(ms:_)) (w_k1, cams, fs) f = do
+	(cam', fs', m_kk1) <- predict cams m fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
 	let w_k = ((clutter_rate ^^ length ms) * exp ((m_k) - (m_kk1) - (_lambda_c))) * w_k1
 	return (w_k, cam':cams, fs'')
 	
 -- | Single-feature single-particle update routine.
 -- TODO: Implement.
-updateParticle1 :: [Measurement] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
-updateParticle1 ms (w_k1, cams, fs) f = do
-	(cam', fs', m_kk1) <- predict cams ms fs f
+updateParticle1 :: [[Measurement]] -> Particle -> ([Camera] -> RVar Camera) -> RVar Particle
+updateParticle1 (m@(ms:_)) (w_k1, cams, fs) f = do
+	(cam', fs', m_kk1) <- predict cams m fs f
 	let (fs'', m_k) = mapUpdate cam' ms fs'
 	
 	let chosen = getBiggest Nothing fs'' where
@@ -153,15 +154,18 @@ normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
 
 -- | The whole RB-PHD-SLAM routine.
 -- Step in time: do the whole EKF update, and then resample the particles
-updateParticles :: [Measurement] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
-updateParticles ms ps f = (if (needResampling ps) then resampleParticles else return) 
-	=<< normalizeWeights <$> sequence (map (\p -> updateParticle ms p f) ps)
+updateParticles :: [[Measurement]] -> [Particle] -> ([Camera] -> RVar Camera) -> RVar [Particle]
+updateParticles mss ps f = do
+	ups <- sequence (map (\p -> updateParticle mss p f) ps)
+	let unps = normalizeWeights ups
+	when (needResampling unps) resampleParticles' $ unps where
+		when b f = if b then f else return
 
 
 -- | Get the number of effective particles and resample, if it is lower than the treshold.
 -- needResampling :: [Particle] -> Bool
 needResampling ps = debug "Eff.no.of.particles" (1 / sum (map (\(w,_,_) -> w*w) ps)) < treshold where
-	treshold = 10
+	treshold = 15
 
 -- | Resampling step. It draws in random from the particle pool
 resampleParticles :: [Particle] -> RVar [Particle]
