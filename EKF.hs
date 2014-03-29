@@ -20,13 +20,10 @@ initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 -- | TODO: check the correctness of this value (10 or 1/10 or other?)
 initialRho = 0.2
 
--- | The eta-value of newly-born features. It could "be arbitrarily small".
-initialEta = 0.01
-
 --------------------------------------------------------------------------------
 
 
--- | 6D Feature mean to a directional (un-normalized) vector
+-- | 6D Landmark mean to a directional (un-normalized) vector
 measure_h :: Camera -> Vector Double -> Vector Double
 measure_h (Camera cp cr) f = 
 		head.toColumns $ trans cr <> asColumn (scale rho (fpos - cp) + euler2vec (theta, phi)) where
@@ -34,7 +31,7 @@ measure_h (Camera cp cr) f =
 	[theta, phi, rho] = toList tmp
 
 
--- | The projection of the 6D Feature mean into theta-phi parametrisation.
+-- | The projection of the 6D Landmark mean into theta-phi parametrisation.
 measure :: Camera -> Vector Double -> (Double, Double)
 measure c f = vec2euler $ measure_h c f
 
@@ -62,9 +59,9 @@ jacobian (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
 -- | Initialize feature from a single measurement. Tuple contains mean theta and phi angles,
 -- relative to the robot (the bearing of an observed feature).
 -- TODO: implement the angle computations
-initialize :: Camera -> Measurement -> Feature
-initialize (Camera cpos crot) angles = Feature
-		initialEta  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
+initialize :: Camera -> Feature -> Landmark
+initialize (Camera cpos crot) (Feature landmark_id angles) = Landmark
+		landmark_id  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
 	h = euler2vec angles
 	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
 
