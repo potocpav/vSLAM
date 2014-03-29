@@ -2,8 +2,6 @@
 module InternalMath where
 
 import Numeric.LinearAlgebra
-import Data.Random (RVar)
-import Data.Random.Distribution.Normal
 
 -- for debugging
 import System.IO.Unsafe (unsafePerformIO)
@@ -26,9 +24,9 @@ rotateYmat a = (3><3) [  cos a, 0, sin a
 					  ,      0, 1, 0
 					  , -sin a, 0, cos a ]
 
--- | Return a pseudo-random point from the feature distribution converted to
--- euclidean space
-randomSample :: Vector Double -> Matrix Double -> RVar (Vector Double)
-randomSample mu cov = do
-	rndVec <- sequence (repeat stdNormal)
-	return $ mu + cov <> (6|>rndVec)
+-- | Inverse depth mean to euclidean parametrization conversion
+toXYZ :: Vector Double -> Vector Double
+toXYZ i = (3|> [x,y,z]) + scale (1/rho) (euler2vec (theta,phi)) where
+	[x,y,z,theta,phi,rho] = toList i
+
+

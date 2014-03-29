@@ -3,13 +3,15 @@ module Feature where
 
 import Numeric.LinearAlgebra
 --import Data.Random hiding (sample)
+import Data.Random.Distribution.Normal
 import Data.Random.Normal
+import Data.Random (RVar)
 
 import InternalMath
 
-data Feature = Feature {eta :: Double, mu :: Vector Double, cov :: Matrix Double}
+data Feature = Feature { eta :: Double, mu :: Vector Double, cov :: Matrix Double }
 instance Show Feature where
-	show (Feature eta mu cov) = "Feature " ++ show eta ++ drop 8 (show mu) ++ "\n" ++ show cov
+	show f = "Feature " ++ show (eta f) ++ drop 8 (show (mu f)) ++ "\n" ++ show (cov f)
 
 type Measurement = (Double, Double)
 -- data Point = Pt Double Double Double
@@ -18,18 +20,22 @@ type Measurement = (Double, Double)
 data Camera = Camera (Vector Double) (Matrix Double)
 	deriving (Show)
 
-
-
--- | Inverse depth to euclidean parametrization conversion
-toXY :: Vector Double -> Vector Double
-toXY i = (3|> [x,y,z]) + scale (1/rho) (euler2vec (theta,phi)) where
-	[x,y,z,theta,phi,rho] = toList i
+inverse2euclidean :: Feature -> Feature
+inverse2euclidean (Feature eta mu cov) = Feature eta mu' cov' where
+	mu' = toXYZ mu
+	[_,_,_,theta,phi,rho] = toList mu
+	cov' = jacob <> cov <> trans jacob
+	jacob = (3><6) 
+		[ 1, 0, 0,    cos phi * cos theta / rho, (-sin phi) * sin theta / rho, (-cos phi) * sin theta / (rho*rho)
+		, 0, 1, 0,             (-sin phi) / rho,             (-cos phi) / rho,              (sin phi) / (rho*rho)
+		, 0, 0, 1, (-cos phi) * sin theta / rho, (-sin phi) * cos theta / rho, (-cos phi) * cos theta / (rho*rho)
+		]
 
 
 -- | Return a pseudo-random point from the feature distribution converted to
 -- euclidean space
 sample :: Feature -> Int -> Vector Double
-sample (Feature _ mu cov) seed = toXY random6 where
+sample (Feature _ mu cov) seed = toXYZ random6 where
 	random6 = mu + cov <> randomStd seed
 	randomStd seed = 6|> mkNormals seed
 	
@@ -38,20 +44,10 @@ samples :: Feature -> Int -> [Vector Double]
 samples feature seed = map (sample feature) [seed,seed+randomBigNumber..] where
 	randomBigNumber = 234563
 	
-{-
--- | Return a random point from the feature distribution converted to
+-- | Return a pseudo-random point from the feature distribution converted to
 -- euclidean space
--- TODO: Delete if not needed.
-sampleIO :: Feature -> IO (V.Vector Float)
-sampleIO (Feature _ mu cov) = do
-	normals <- normalsIO
-	let randomStd = M.colVector (V.fromList $ take 4 normals)
-	let random4 = M.getCol 1 $ M.colVector mu + cov * randomStd
-	return $ toXY random4
-
--- | Take n random samples from Feature pdf
--- TODO: Delete if needed.
-samplesIO :: Int -> Feature -> IO [V.Vector Float]
-samplesIO n = sequence . take n . repeat . sampleIO
-
--}
+randomSample :: Vector Double -> Matrix Double -> RVar (Vector Double)
+randomSample mu cov = do
+	rndVec <- sequence (repeat stdNormal)
+	return . toXYZ $ mu + cov <> (6|>rndVec)
+	

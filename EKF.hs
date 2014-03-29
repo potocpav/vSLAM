@@ -63,7 +63,7 @@ jacobian (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
 -- relative to the robot (the bearing of an observed feature).
 -- TODO: implement the angle computations
 initialize :: Camera -> Measurement -> Feature
-initialize (Camera cpos crot) angles = Feature 
+initialize (Camera cpos crot) angles = Feature
 		initialEta  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
 	h = euler2vec angles
 	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
