@@ -171,6 +171,7 @@ normalizeWeights ss = map (\(w,r,s) -> (w/sumw,r,s)) ss where
 needResampling ps = debug "Eff.no.of.particles" (1 / sum (map (\(w,_,_) -> w*w) ps)) < treshold where
 	treshold = 15
 
+
 -- | Resampling step. It draws in random from the particle pool
 resampleParticles :: [Particle] -> RVar [Particle]
 resampleParticles ps =  sequence . replicate len . categorical 
