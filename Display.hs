@@ -16,7 +16,7 @@ import Numeric.LinearAlgebra
 import InternalMath
 import Feature
 import Simulate
-import PHDSLAM
+import FastSLAM
 
 ts :: Double
 ts = 0.01
@@ -26,8 +26,8 @@ faceHeight = 1.5
 
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
--- | The true camera position sequence, and particle set.
-data SLAMState = SLAM { cameras :: [Camera], measurements :: [[Measurement]], particles :: [Particle] }
+-- | The true camera position sequence, measurement history, and a particle set.
+data SLAMState = SLAM { cameras :: [Camera], measurements :: [[Feature]], particles :: [Particle] }
 
 data GameState = GameState { observer :: ObserverState
                            , input :: InputState
@@ -51,17 +51,18 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 		y' = (fromIntegral y) `div` 2
 	meas <- measurement (head cams)
 	let measure_history = if spacePressed input' then meas:mss else mss
-	-- | Run the PHDSLAM routine
+	-- | Run the FastSLAM routine
 	ps' <- if not (spacePressed input') then return ps else
 		(flip runRVar) DevURandom $ updateParticles 
-				measure_history
 				ps
+				meas
 				(camTransition cams)
-
 	
 	-- | if space pressed, then copy the first camera. This has to be -after-
-	-- the PHDSLAM routine.
-	let cams' = if spacePressed input' then head cams:cams else cams
+	-- the Fast routine.
+	let cams' = if spacePressed input' then head cams : cams else cams
+	
+	{- 'x' key behavior
 	when (xPressed input') $ do
 		let lastCam = head $ (\(_,a,_) -> a) (head ps)
 		print lastCam
@@ -73,7 +74,8 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 		--- sequence $ map (putStrLn.show) ((\(_,_,t)->t) (head ps))
 		print $ (\(w,_,_) -> w) (head newParticle)
 		return ()
-		
+	-}
+	
 	when (Just (x',y') /= lastMousePos input') (pointerPosition $= (Position x' y'))
 
 	return $ GameState 
@@ -122,47 +124,44 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
 
 drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running _ _ _) _ (SLAM cams _ ps)) = VisObjects $ 
-	[drawBackground, drawCameras (makeColor 0 1 0 1) cams] 
+	[drawBackground, drawCamTrajectory 0.2 cams] 
 	++ map drawParticle ps
-	++ map drawLandmark landmarks 
-	++ zipWith drawFeature [1..] (if null ps then [] else mergeMapsMAP ps)
-   
--- | Weighted average of map estimates
-mergeMapsEAP :: [Particle] -> [Feature]
-mergeMapsEAP [] = []
-mergeMapsEAP ((w, _, fs):ps) = map (scaleWeight w) fs ++ mergeMapsEAP ps where
-	scaleWeight w' f = f { eta = eta f * w' }
+	++ map drawTrueLandmark trueMap
+	++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
+	
 	
 -- | The map estimate of the particle with max weight
-mergeMapsMAP :: [Particle] -> [Feature]
-mergeMapsMAP [] = []
-mergeMapsMAP ps = (\(_,_,fs) -> debug "nfeatures" (length fs) `seq` fs) max_feature where
-	max_feature :: Particle
-	max_feature = foldl (\(w,a,b) (x,c,d) -> if w>x then (w,a,b) else (x,c,d)) (0,undefined,undefined) ps
+mergeMapsMAP :: [Particle] -> Map
+mergeMapsMAP [] = Set.empty
+mergeMapsMAP ps = landmarks max_particle where
+	max_particle :: Particle
+	max_particle = foldl1 max ps
    
 drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
 	Line [V3 0 0 0, V3 (-3000) (-3000) 3000] (makeColor 0 0 1 1)]
 
 -- | Takes the seed as an argument.
-drawFeature :: Int -> Feature -> VisObject Double
-drawFeature seed f = Points (map vec2v3 (take (round $ eta f * 100) $ samples f seed)) (Just 3) (makeColor 0 0 0 1) where
+drawLandmark :: Int -> Landmark -> VisObject Double
+drawLandmark seed l = Points (map vec2v3 (take 50 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
 drawParticle :: Particle -> VisObject Double
-drawParticle (w, cs, _) = drawCameras  (makeColor (realToFrac w*10) (realToFrac w*10) (realToFrac w*10) 1) cs
+drawParticle (Particle w cs _) = drawCamTrajectory w cs
 	
-drawLandmark :: V3 Double -> VisObject Double
-drawLandmark l = Trans l $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
+-- | TODO: Display number
+drawTrueLandmark :: (LID, V3 Double) -> VisObject Double
+drawTrueLandmark (lid, pos) = Trans pos $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
-drawCameras :: Vis.Color -> [Camera] -> VisObject Double
-drawCameras _ [] = VisObjects []
-drawCameras color' (Camera cp cr:cs) = VisObjects $
-	Line (v2V cp : map (\(Camera p _) -> v2V p) cs) color' : [drawCam]
+-- | Draw a camera with a pre-set weight
+drawCamTrajectory :: Double -> [Camera] -> VisObject Double
+drawCamTrajectory _ [] = VisObjects []
+drawCamTrajectory w (Camera cp cr:cs) = VisObjects $
+	Line (v2V cp : map (\(Camera p _) -> v2V p) cs) (makeColor 0 0 1 1) : [drawCam]
 		 where
 			drawCam = Trans (v2V cp) $ VisObjects 
-					[ Cube 0.2 Wireframe color'
-					, Arrow (0.5, 20) (v2V $ cr <> (3|> [0,0,1])) color' ]
+					[ Cube w Wireframe (makeColor 1 0 0 1)
+					, Line [V3 0 0 0, v2V $ cr <> (3|> [0,0,0.2])] (makeColor 1 0 0 1) ]
 			v2V v = V3 (v@>0) (v@>1) (v@>2)
 
 	
@@ -172,7 +171,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 20 (1, [], []) ))
+				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 100 (Particle 1 [] Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads

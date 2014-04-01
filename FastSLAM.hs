@@ -15,6 +15,10 @@ type Map = S.Set Landmark
 -- | The first number is particle weight, second camera position sequence.
 -- The camera sequence should be superfluous for the filter.
 data Particle = Particle { weight :: Double, cams :: [Camera], landmarks :: Map }
+instance Eq Particle where
+	p == q = weight p == weight q
+instance Ord Particle where
+	compare p q = compare (weight p) (weight q)
 
 
 measurement_cov = diag (2|> [0.01, 0.01])
@@ -78,14 +82,29 @@ updateParticles :: [Particle] -> [Feature] -> (Camera -> RVar Camera) -> RVar [P
 updateParticles ps fs h = do
 	new_ps <- sequence (map (\p -> updateParticle p fs h) ps)
 	let norm_ps = normalizeWeights new_ps
-	when (needResampling norm_ps) resampleParticles $ norm_ps where
+	when (needResampling norm_ps) resampleParticles' $ norm_ps where
 		when b f = if b then f else return
 
 
-needResampling _ = False
+
+-- | Get the number of effective particles and resample, if it is lower than the treshold.
+-- needResampling :: [Particle] -> Bool
+needResampling ps = debug "Eff.no.of.particles" (1 / sum (map (\p -> weight p * weight p) ps)) < treshold where
+	treshold = 50
 
 
-resampleParticles _ = undefined
+-- | Recursively resample the particles. The particle weights are put one
+-- after another to fill the unit interval, then the particles are chosen
+-- by equally-spaced points (with spacing (1/length ps)) in the interval.
+resampleParticles' :: [Particle] -> RVar [Particle]
+resampleParticles' pp = return $ ("nr.parts."`debug`length pp) `seq` resample' (n/2) pp where
+	n = 1 / fromIntegral (length pp)
+	-- | First argument is the position of the next sampling point in the unit interval
+	resample' :: Double -> [Particle] -> [Particle]
+	resample' _ [] = []
+	resample' i (Particle w c l:ps) = if i < w
+			then Particle n c l : resample' (i+n) (Particle w c l:ps)
+			else resample' (i-w) ps
 
 
 -- | The sum of all weights is made to be equal to 1.

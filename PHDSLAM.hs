@@ -187,7 +187,7 @@ resampleParticles' pp = return $ resample' (n/2) pp where
 	-- | First argument is the position of the next sampling point in the unit interval
 	resample' :: Double -> [Particle] -> [Particle]
 	resample' _ [] = []
-	resample' i ((w,r,t):ps) = if i < w 
+	resample' i ((w,r,t):ps) = if i < w + n
 			then (n,r,t) : resample' (i+n) ((w,r,t):ps)
 			else resample' (i-w) ps
 
