@@ -21,8 +21,6 @@ import FastSLAM
 ts :: Double
 ts = 0.01
 
-faceHeight :: Double
-faceHeight = 1.5
 
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
@@ -40,7 +38,7 @@ toVertex xyz = (\(V3 x y z) -> Vertex3 x y z) $ fmap realToFrac xyz
 setCamera :: ObserverState -> IO ()
 setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target) (Vector3 0 (-1) 0)
 	where
-		xyz0 = V3 x (y-faceHeight) z
+		xyz0 = V3 x y z
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
 simfun :: Float -> GameState -> IO GameState
@@ -91,11 +89,13 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 					right = if keyPressed 'i' then ts else 0
 					lturn = if keyPressed 'l' then 2 else 0
 					rturn = if keyPressed 'y' then 2 else 0
-			v = rotateXyzAboutY (V3 (d-a) 0 (w-s)) yaw where
+			v = rotateXyzAboutY (V3 (d-a) (dn-up) (w-s)) yaw where
 					w = if keyPressed 'w' then 3 else 0
 					a = if keyPressed 'a' then 3 else 0
 					s = if keyPressed 'r' then 3 else 0
 					d = if keyPressed 's' then 3 else 0
+					up = if keyPressed 'p' then 3 else 0
+					dn = if keyPressed 't' then 3 else 0
 
 keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
 keyMouseCallback state0 key keystate _ _
@@ -138,8 +138,7 @@ mergeMapsMAP ps = landmarks max_particle where
 	max_particle = foldl1 max ps
    
 drawBackground :: VisObject Double
-drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 1 0 0 1),
-	Line [V3 0 0 0, V3 (-3000) (-3000) 3000] (makeColor 0 0 1 1)]
+drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1)]
 
 -- | Takes the seed as an argument.
 drawLandmark :: Int -> Landmark -> VisObject Double
@@ -169,7 +168,7 @@ main :: IO ()
 main = do
 	let 
 		state0 = GameState 
-				(Running (V3 0 0 (-5)) 0 (Euler 0 0 0)) 
+				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
 				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 100 (Particle 1 [] Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
