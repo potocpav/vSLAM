@@ -50,8 +50,8 @@ camTransition :: [Camera] -> Camera -> RVar Camera
 camTransition [] _ = undefined
 camTransition (c1:[]) _ = return c1
 camTransition (Camera cp2 cr2:Camera cp1 cr1:_) (Camera cp cr) = do
-	[xdev,zdev,wdev] <- sequence . take 3 $ repeat stdNormal
-	let posdev = 3|> [xdev*0.1,0,zdev*0.1]
+	[xdev,ydev,zdev,wdev] <- sequence . take 4 $ repeat stdNormal
+	let posdev = 3|> [xdev*0.1,ydev*0.0,zdev*0.1]
 	let thetadev = wdev * 0.1
 	return $ Camera (cp + movement*0 + posdev) (cr <> rotation <> rotateYmat thetadev) where
 		(movement, rotation) = (cp2 - cp1, cr2 <> trans cr1)

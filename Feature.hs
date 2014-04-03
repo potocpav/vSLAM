@@ -13,23 +13,23 @@ import InternalMath
 newtype LID = LID Int deriving (Eq, Ord, Show)
 
 -- | Inverse-depth 6D-parametrised landmark.
-data Landmark = Landmark { lmk_id :: LID, mu :: Vector Double, cov :: Matrix Double }
+data Landmark = Landmark { lid :: LID, lmu :: Vector Double, lcov :: Matrix Double }
 instance Show Landmark where
-	show l = "Landmark " ++ show (lmk_id l) ++ drop 8 (show (mu l)) ++ "\n" ++ show (cov l)
+	show l = "Landmark " ++ show (lid l) ++ drop 8 (show (lmu l)) ++ "\n" ++ show (lcov l)
 -- | Landmarks get compared only by their ID.
 instance Eq Landmark where
-	a == b = lmk_id a == lmk_id b
+	a == b = lid a == lid b
 instance Ord Landmark where
-	compare a b = compare (lmk_id a) (lmk_id b)
+	compare a b = compare (lid a) (lid b)
 
--- | Landmark projection, associated by lID with a maybe landmark.
-data Feature = Feature  { lID :: LID, fProj :: (Double, Double) }
+-- | Landmark projection, associated by lID with a landmark (which need not exist yet).
+data Feature = Feature  { fid :: LID, fProj :: (Double, Double) }
 
--- | Camera is parametrised by its position and a rotation matrix.
-data Camera = Camera (Vector Double) (Matrix Double)
-	deriving (Show)
 
--- | Currently not used. Probably could be deleted.
+-- | Currently not used. Probably could be deleted. It can create 3D Euclidean
+-- approximation to the 6D landmarks, to save some computing power. But the
+-- 6D parametrization does have the first 3 rows and cols of covariance zero,
+-- so the computing could be saved by instead taking advantage of that fact.
 inverse2euclidean :: Landmark -> Landmark
 inverse2euclidean (Landmark id mu cov) = Landmark id mu' cov' where
 	mu' = toXYZ mu

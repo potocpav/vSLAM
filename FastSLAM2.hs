@@ -12,9 +12,8 @@ import InternalMath
 
 
 type Map = S.Set Landmark
--- | The first number is particle weight, second camera position sequence.
+-- | The first number is particle weight, second is the camera position sequence.
 -- The camera sequence should be superfluous for the filter.
-data Particle = Particle { weight :: Double, cams :: [Camera], landmarks :: Map }
 instance Eq Particle where
 	p == q = weight p == weight q
 instance Ord Particle where
@@ -32,7 +31,7 @@ findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 			
 		
 singleFeatureUpdate :: Camera -> Feature -> Map -> (Maybe Double, Map)
-singleFeatureUpdate cam f m = case findLm (lID f) m of 
+singleFeatureUpdate cam f m = case findLm (fid f) m of 
 	Just (Landmark id_l mu_l cov_l) -> let
 		_H = jacobian cam mu_l
 		_S = _H <> cov_l <> trans _H + measurement_cov
@@ -90,7 +89,7 @@ updateParticles ps fs h = do
 -- | Get the number of effective particles and resample, if it is lower than the treshold.
 -- needResampling :: [Particle] -> Bool
 needResampling ps = debug "Eff.no.of.particles" (1 / sum (map (\p -> weight p * weight p) ps)) < treshold where
-	treshold = 50
+	treshold = 40
 
 
 -- | Recursively resample the particles. The particle weights are put one
