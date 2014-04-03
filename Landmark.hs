@@ -1,16 +1,16 @@
 
-module Feature where
+module Landmark where
 
 import Numeric.LinearAlgebra
---import Data.Random hiding (sample)
-import Data.Random.Distribution.Normal
-import Data.Random.Normal
 import Data.Random (RVar)
+import Data.Random.Normal
+import Data.Random.Distribution.Normal
 
 import InternalMath
 
 -- | Landmark ID, constituting a new type, because Integer arithmetics does not make sense.
 newtype LID = LID Int deriving (Eq, Ord, Show)
+
 
 -- | Inverse-depth 6D-parametrised landmark.
 data Landmark = Landmark { lid :: LID, lmu :: Vector Double, lcov :: Matrix Double }
@@ -24,7 +24,7 @@ instance Ord Landmark where
 
 -- | Landmark projection, associated by lID with a landmark (which need not exist yet).
 data Feature = Feature  { fid :: LID, fProj :: (Double, Double) }
-
+	
 
 -- | Currently not used. Probably could be deleted. It can create 3D Euclidean
 -- approximation to the 6D landmarks, to save some computing power. But the

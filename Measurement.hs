@@ -1,19 +1,13 @@
 
--- | Now this is a somehow-well-tested library.
-
--- TODO: Clean export list. Right now some modules are needed just by the unit test.
-module EKF (measure, jacobian, initialize) where
+module Measurement where
 
 import Numeric.LinearAlgebra
-import Numeric.LinearAlgebra.Util ((!))
-import Feature
+--import Numeric.LinearAlgebra.Util ((!))
+
 import InternalMath
+import Landmark
+import Camera
 
-
---------------------------------------------------------------------------------
--- Feature initialization parameters
-
--- | Could be dependent on the position of a measurement sensor.
 -- | TODO: tie this with the covariance, defined for observations in PHDSLAM.hs
 initialCov :: Matrix Double
 initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
@@ -21,8 +15,17 @@ initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 -- | TODO: check the correctness of this value (10 or 1/10 or other?)
 initialRho = 0.2
 
---------------------------------------------------------------------------------
 
+-- | Initialize a landmark from a single measurement. Tuple contains mean theta and phi angles,
+-- relative to the robot (the bearing of an observed feature).
+-- TODO: implement the angle computations
+initialize :: ExactCamera -> Feature -> Landmark
+initialize (ExactCamera cpos crot) (Feature landmark_id angles) = Landmark
+		landmark_id  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
+	h = euler2vec angles
+	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
+
+--------------------------------------------------------------------------------
 
 -- | 6D Landmark mean to a directional (un-normalized) vector in camera-space.
 -- The first parameter is the camera position, the second is the landmark mean.
@@ -33,22 +36,22 @@ measure_g camPos f = scale rho (fpos - camPos) + euler2vec (theta, phi) where
 	[theta, phi, rho] = toList tmp
 
 -- | 6D Landmark mean to a directional (un-normalized) vector in world-space.
-measure_h :: Camera -> Vector Double -> Vector Double
-measure_h (Camera cp cr) f = head.toColumns $ trans cr <> asColumn (measure_g cp f)
+measure_h :: ExactCamera -> Vector Double -> Vector Double
+measure_h (ExactCamera cpos crot) f = head.toColumns $ trans crot <> asColumn (measure_g cpos f)
 
 -- | The projection of the 6D Landmark mean into theta-phi parametrisation.
-measure :: Camera -> Vector Double -> (Double, Double)
+measure :: ExactCamera -> Vector Double -> (Double, Double)
 measure c f = vec2euler $ measure_h c f
 
 
--- | Measurement equation jacobian with respect to the feature
-jacobian :: Camera -> Vector Double -> Matrix Double
-jacobian (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
+-- | Measurement equation jacobian with respect to the landmark
+jacobian_l :: ExactCamera -> Vector Double -> Matrix Double
+jacobian_l (cam@(ExactCamera cpos crot)) f = fromRows [e1', e2'] where
 	[x, y, z, theta, phi, rho] = toList f
-	[x_c, y_c, z_c] = toList cp
+	[x_c, y_c, z_c] = toList cpos
 	[h_x, h_y, h_z] = toList $ measure_h cam f
 	[h_x', h_y', h_z'] = toRows h'
-	h' = trans cr <> ((3><6) 
+	h' = trans crot <> ((3><6) 
 		[ rho,   0,   0,  cos theta * cos phi, -sin theta * sin phi, x - x_c
 		,   0, rho,   0,                    0,             -cos phi, y - y_c
 		,   0,   0, rho, -sin theta * cos phi, -cos theta * sin phi, z - z_c ])
@@ -62,17 +65,17 @@ jacobian (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
 
 
 -- | Measurement equation jacobian with respect to the camera
-jacobian_c :: Camera -> Vector Double -> Matrix Double
-jacobian_c (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
+jacobian_c :: GaussianCamera -> Vector Double -> Matrix Double
+jacobian_c (cam@(GaussianCamera mu _)) f = fromRows [e1', e2'] where
 	[x, y, z, theta, phi, rho] = toList f
-	[x_c, y_c, z_c] = toList cp
+	[c_x, c_y, c_z, alpha, beta, gamma] = toList mu
 	-- [h_x, h_y, h_z] = toList $ measure_h cam f
 	--[h_x', h_y', h_z'] = toRows h'
 
 	dR_da = undefined :: Matrix Double
 	dR_db = undefined :: Matrix Double
 	dR_dg = undefined :: Matrix Double
-	g = measure_g cp f
+	g = measure_g (3|> [c_x,c_y,c_z]) f
 	--h' = (cr <> scale (-rho) (ident 3)) ! (dR_da <> g) ! (dR_db <> g) ! (dR_dg <> g)
 	
 	e1' = undefined
@@ -83,13 +86,4 @@ jacobian_c (cam@(Camera cp cr)) f = fromRows [e1', e2'] where
 	--      scale (h_y / (xxzz + h_y*h_y) / sqrt xxzz) 
 	--		(scale h_x h_x' + scale h_z h_z')
 
-
--- | Initialize feature from a single measurement. Tuple contains mean theta and phi angles,
--- relative to the robot (the bearing of an observed feature).
--- TODO: implement the angle computations
-initialize :: Camera -> Feature -> Landmark
-initialize (Camera cpos crot) (Feature landmark_id angles) = Landmark
-		landmark_id  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
-	h = euler2vec angles
-	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
 
