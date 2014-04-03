@@ -31,7 +31,7 @@ data Feature = Feature  { fid :: LID, fProj :: (Double, Double) }
 -- 6D parametrization does have the first 3 rows and cols of covariance zero,
 -- so the computing could be saved by instead taking advantage of that fact.
 inverse2euclidean :: Landmark -> Landmark
-inverse2euclidean (Landmark id mu cov) = Landmark id mu' cov' where
+inverse2euclidean (Landmark id' mu cov) = Landmark id' mu' cov' where
 	mu' = toXYZ mu
 	[_,_,_,theta,phi,rho] = toList mu
 	cov' = jacob <> cov <> trans jacob
@@ -47,7 +47,7 @@ inverse2euclidean (Landmark id mu cov) = Landmark id mu' cov' where
 sample :: Landmark -> Int -> Vector Double
 sample (Landmark _ mu cov) seed = toXYZ random6 where
 	random6 = mu + cov <> randomStd seed
-	randomStd seed = 6|> mkNormals seed
+	randomStd s = 6|> mkNormals s
 	
 -- | Return a pseudo-random infinite list of samples.
 samples :: Landmark -> Int -> [Vector Double]

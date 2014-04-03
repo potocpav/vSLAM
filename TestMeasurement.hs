@@ -31,7 +31,7 @@ test_e2v = quickCheck ((\s -> (euler2vec.vec2euler.euler2vec) s ~= euler2vec s) 
 
 
 -- | Testing derivative of measurement equation by derivative definition.
--- This test rarely fails, but this is probably due to precision issues.
+-- This test sometimes fails, but this is hopefully due to precision issues.
 -- There are some degenerate configurations, that can cause precision loss.
 -- The evidence for this is, that by increasing the error tolerance, the failure
 -- rate decreases, in a seemingly smooth fashion.
@@ -58,7 +58,7 @@ test_jacobian_l = deepCheck f where
 		[j1',j2'] = (\(a,b) (c,d) -> [(a-c)/diff,(b-d)/diff]) 
 		            (measure cam (feature+scale diff dfeature)) (measure cam feature)
 			 
-			 
+-- | Analogous to the test_jacobian_l function.
 test_jacobian_c = deepCheck f where
 	f :: (Hexplet, Hexplet, Hexplet) -> Bool
 	f (((cx,cy,cz),(alpha,beta,gamma)),      -- ^random camera
@@ -110,4 +110,5 @@ test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 main = do
 	test_e2v
 	test_jacobian_l
+	test_jacobian_c
 	test_initialize
