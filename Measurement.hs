@@ -72,27 +72,31 @@ jacobian_c :: GaussianCamera -> Vector Double -> Matrix Double
 jacobian_c (cam@(GaussianCamera mu _)) f = fromRows [e1', e2'] where
 	[x, y, z, theta, phi, rho] = toList f
 	[c_x, c_y, c_z, alpha, beta, gamma] = toList mu
+	
+	sa = sin alpha; sb = sin beta; sg = sin gamma;
+	ca = cos alpha; cb = cos beta; cg = cos gamma; 
+	
 	cpos = (3|> [c_x,c_y,c_z])
 	crot = (3><3) -- yaw, pitch, roll to a rotation matrix
-		[ sin(alpha)*sin(beta)*sin(gamma) +  cos(alpha)*cos(gamma), -cos(gamma)*sin(alpha)*sin(beta) + cos(alpha)*sin(gamma), -cos(beta)*sin(alpha)
-		,                                    -cos(beta)*sin(gamma),                                     cos(beta)*cos(gamma),            -sin(beta)
-		, -cos(alpha)*sin(beta)*sin(gamma) + cos(gamma)*sin(alpha), cos(alpha)*cos(gamma)*sin(beta) + sin(alpha)*sin(gamma),   cos(alpha)*cos(beta) ]
-	
+		[  sa*sb*sg + ca*cg, -cg*sa*sb + ca*sg, -cb*sa
+		,            -cb*sg,             cb*cg,    -sb
+		, -ca*sb*sg + cg*sa,  ca*cg*sb + sa*sg,  ca*cb ]
+		
 	[h_x, h_y, h_z] = toList $ measure_h (ExactCamera cpos crot) f
 	[h_x', h_y', h_z'] = toRows h'
 
 	dR_da = (3><3)
-		[ cos(alpha)*sin(beta)*sin(gamma) - cos(gamma)*sin(alpha), -cos(alpha)*cos(gamma)*sin(beta) - sin(alpha)*sin(gamma), -cos(alpha)*cos(beta)
-		,                                                       0,                                                        0,                     0
-		, sin(alpha)*sin(beta)*sin(gamma) + cos(alpha)*cos(gamma), -cos(gamma)*sin(alpha)*sin(beta) + cos(alpha)*sin(gamma), -cos(beta)*sin(alpha) ]
+		[ ca*sb*sg - cg*sa, -ca*cg*sb - sa*sg, -ca*cb
+		,                0,                 0,      0
+		, sa*sb*sg + ca*cg, -cg*sa*sb + ca*sg, -cb*sa ]
 	dR_db = (3><3)
-		[  cos(beta)*sin(alpha)*sin(gamma), -cos(beta)*cos(gamma)*sin(alpha),  sin(alpha)*sin(beta)
-		,             sin(beta)*sin(gamma),            -cos(gamma)*sin(beta),            -cos(beta)
-		, -cos(alpha)*cos(beta)*sin(gamma), cos(alpha)*cos(beta)*cos(gamma), -cos(alpha)*sin(beta) ]
+		[ cb*sa*sg, -cb*cg*sa,  sa*sb
+		,    sb*sg,    -cg*sb,    -cb
+		, -ca*cb*sg, ca*cb*cg, -ca*sb ]
 	dR_dg = (3><3)
-		[  cos(gamma)*sin(alpha)*sin(beta) - cos(alpha)*sin(gamma),  sin(alpha)*sin(beta)*sin(gamma) + cos(alpha)*cos(gamma), 0
-		, -cos(beta)*cos(gamma),                                                                       -cos(beta)*sin(gamma), 0
-		, -cos(alpha)*cos(gamma)*sin(beta) - sin(alpha)*sin(gamma), -cos(alpha)*sin(beta)*sin(gamma) + cos(gamma)*sin(alpha), 0 ]
+		[  cg*sa*sb - ca*sg,  sa*sb*sg + ca*cg, 0
+		,            -cb*cg,            -cb*sg, 0
+		, -ca*cg*sb - sa*sg, -ca*sb*sg + cg*sa, 0 ]
 
 	g = asColumn $ measure_g cpos f
 	h' = (crot <> scale (-rho) (ident 3)) ! (dR_da <> g) ! (dR_db <> g) ! (dR_dg <> g)

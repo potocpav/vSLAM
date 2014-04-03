@@ -1,10 +1,11 @@
 
-module TestEKF3D where
+module TestMeasurement where
 
 import Test.QuickCheck hiding ((><))
 import Numeric.LinearAlgebra
-import EKF3D
-import Feature3D
+import Measurement
+import Landmark
+import Camera
 import InternalMath
 
 -- for debugging
@@ -39,7 +40,7 @@ test_e2v = quickCheck ((\s -> (euler2vec.vec2euler.euler2vec) s ~= euler2vec s) 
 -- rate decreases, in a seemingly smooth fashion.
 type Triplet = (Double, Double, Double)
 type Hexplet = (Triplet, Triplet)
-test_jacobian = quickCheckWith stdArgs {maxSuccess = 10000} f where
+test_jacobian_l = quickCheckWith stdArgs {maxSuccess = 10000} f where
 	f :: (Hexplet, Hexplet, Hexplet) -> Bool
 	f (((cx,cy,cz),cr),      -- ^random camera
 	   ((x,y,z),(theta,phi,rho)),       -- ^random feature
@@ -47,7 +48,7 @@ test_jacobian = quickCheckWith stdArgs {maxSuccess = 10000} f where
 	   
 		= j1 ~~= j1' && j2 ~~= j2' where
 		
-		cam = Camera (3|> [cx,cy,cz]) (euler2matrix cr) -- ^ random camera
+		cam = ExactCamera (3|> [cx,cy,cz]) (euler2matrix cr) -- ^ random camera
 		feature = 6|> [x,y,z,theta,phi,rho] -- ^ random feature
 		-- | random vector of unit length (used as a random direction of a derivative)
 		dfeature = let df = 6|> [dx,dy,dz,dtheta,dphi,drho] in
@@ -55,7 +56,7 @@ test_jacobian = quickCheckWith stdArgs {maxSuccess = 10000} f where
 		diff = 10^^(-9)
 		
 		-- | The jacobian being tested
-		[j1,j2] = toList $ jacobian cam feature <> dfeature
+		[j1,j2] = toList $ jacobian_l cam feature <> dfeature
 		-- | The jacobian, computed by derivative definition from measurement equation
 		[j1',j2'] = (\(a,b) (c,d) -> [(a-c)/diff,(b-d)/diff]) 
 		            (measure cam (feature+scale diff dfeature)) (measure cam feature)
@@ -66,14 +67,14 @@ test_jacobian = quickCheckWith stdArgs {maxSuccess = 10000} f where
 test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 	f :: (Hexplet, (Double, Double)) -> Bool
 	f (((cx,cy,cz),cr),angles) = a ~= a' && b ~= b' where
-		cam = Camera (3|> [cx,cy,cz]) (euler2matrix cr) -- ^ random camera
+		cam = ExactCamera (3|> [cx,cy,cz]) (euler2matrix cr) -- ^ random camera
 		(a, b) = normalize angles
 		normalize = vec2euler.euler2vec
 		
-		f_mu = mu $ initialize cam angles
+		f_mu = lmu $ initialize cam (Feature undefined angles)
 		(a', b') = normalize $ measure cam f_mu
 		
 main = do
 	test_e2v
-	test_jacobian
+	test_jacobian_l
 	test_initialize
