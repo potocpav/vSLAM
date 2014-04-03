@@ -8,7 +8,7 @@ import InternalMath
 import Landmark
 import Camera
 
--- | TODO: tie this with the covariance, defined for observations in PHDSLAM.hs
+-- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
 initialCov :: Matrix Double
 initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 

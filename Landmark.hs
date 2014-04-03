@@ -5,6 +5,7 @@ import Numeric.LinearAlgebra
 import Data.Random (RVar)
 import Data.Random.Normal
 import Data.Random.Distribution.Normal
+import qualified Data.Set as S
 
 import InternalMath
 
@@ -25,6 +26,7 @@ instance Ord Landmark where
 -- | Landmark projection, associated by lID with a landmark (which need not exist yet).
 data Feature = Feature  { fid :: LID, fProj :: (Double, Double) }
 	
+type Map = S.Set Landmark
 
 -- | Currently not used. Probably could be deleted. It can create 3D Euclidean
 -- approximation to the 6D landmarks, to save some computing power. But the
