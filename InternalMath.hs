@@ -6,7 +6,7 @@ import Numeric.LinearAlgebra
 -- for debugging
 import System.IO.Unsafe (unsafePerformIO)
 debug :: Show a => String -> a -> a
-debug s a = unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
+debug s a = a `seq` unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
 infixr 1 `debug`
 
 -- | Un-normalized 3-vec parametrization to azimuth-elevation pair

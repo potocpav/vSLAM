@@ -98,8 +98,8 @@ jacobian_c (cam@(GaussianCamera mu _)) f = fromRows [e1', e2'] where
 		,            -cb*cg,            -cb*sg, 0
 		, -ca*cg*sb - sa*sg, -ca*sb*sg + cg*sa, 0 ]
 
-	g = asColumn $ measure_g cpos f
-	h' = (crot <> scale (-rho) (ident 3)) ! (dR_da <> g) ! (dR_db <> g) ! (dR_dg <> g)
+	g' = asColumn $ measure_g cpos f
+	h' = (trans crot <> scale (-rho) (ident 3)) ! (trans dR_da <> g') ! (trans dR_db <> g') ! (trans dR_dg <> g')
 	
 	xxzz = h_x*h_x + h_z*h_z
 	e1' = scale (h_z / xxzz) h_x' - scale (h_x / xxzz) h_z'
