@@ -68,7 +68,8 @@ cameraSample (GaussianCamera mu cov) = do
 	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 
 
-camerasSample :: [(Double, GaussianCamera)] -> RVar [ExactCamera]
+-- | TODO: change the function to match the new signature
+camerasSample :: [(Double, GaussianCamera, Map)] -> RVar [(ExactCamera, Map)]
 camerasSample ps = sequence $ replicate (length ps) (cameraSample =<< weightedCategorical ps)
 
 		
@@ -87,9 +88,8 @@ singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of
 		mu' = mu_l + _K <> (z-z')
 		cov' = _P
 		-- | TODO: ?remove the measurement error from this _S coefficient?
-		-- | TODO: ?Refactor this equation to use the RS-SLAM described coefficient?
 		-- | TODO: Rewrite this function to take advantage of the multinormal pdf function written earlier
-		w' = (det (2*pi*_S)) ** (-1/2) * exp ((-1/2 * asRow (z-z') <> inv _S <> asColumn (z-z')) @@> (0,0))
+		--w' = (det (2*pi*_S)) ** (-1/2) * exp ((-1/2 * asRow (z-z') <> inv _S <> asColumn (z-z')) @@> (0,0))
 		in S.insert (Landmark id_l mu' cov') m
 	Nothing -> S.insert (initialize cam f) m
 
@@ -113,7 +113,11 @@ filterUpdate input_state camTransition features = do
 		updated_cameras :: [(Double, GaussianCamera)]
 		updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
 	
-	resampled_cameras <- camerasSample updated_cameras
+	-- resampled_state :: [(ExactCamera, Map)]
+	resampled_state <- camerasSample updated_cameras
 	
-	-- let new_maps = map (\c -> mapUpdate c input_maps features) resampled_cameras
-	-- return $ zip resampled_cameras new_maps
+	
+	let 
+		new_maps :: [Map]
+		new_maps = map (\(c,m) -> mapUpdate c m features) resampled_state
+	return $ zip (map fst resampled_state) new_maps
