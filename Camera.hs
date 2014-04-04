@@ -2,6 +2,7 @@
 module Camera where
 
 import Numeric.LinearAlgebra
+import InternalMath
 
 -- | Camera is parametrised by its position and a rotation matrix.
 data ExactCamera = ExactCamera { cpos :: Vector Double, crot :: Matrix Double }
@@ -17,9 +18,9 @@ data GaussianCamera = GaussianCamera { cmu :: Vector Double, ccov :: Matrix Doub
 rotmat2euler :: Matrix Double -> Vector Double
 rotmat2euler m = case abs (m @@> (1,2)) of
 	1 -> let
-		alpha = 0
+		alpha = debug "zero" 0
 		beta = -asin (m @@> (1,2))
-		gamma = atan2 (m @@> (0,1) * m @@> (1,2)) (m @@> (0,0) * m@@> (1,2))
+		gamma = atan2 (m @@> (0,1)) (m @@> (0,0))
 			in 3 |> [alpha, beta, gamma]
 	otherwise -> let
 		alpha = -atan2 (m @@> (0,2) / cos beta) (m @@> (2,2) / cos beta)
