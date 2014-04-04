@@ -1,6 +1,7 @@
 module FastSLAM where
 
 import Data.Random (RVar)
+import Data.Random.Distribution.Normal
 import Data.List (foldl')
 --import Data.Random.Distribution.Categorical
 import Numeric.LinearAlgebra
@@ -11,6 +12,9 @@ import Landmark
 import Camera
 import Measurement
 import InternalMath
+
+import Data.Random
+import Data.Random.Source.DevRandom
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov = diag (2|> [0.01, 0.01])
@@ -29,30 +33,36 @@ proposal :: ExactCamera -> (Vector Double -> GaussianCamera) -> GaussianCamera
 proposal (ExactCamera cpos crot) f = f (cpos & rotmat2euler crot)
 
 
--- | Implemented according to the original FastSLAM 2.0 paper
+-- | Implemented according to the original FastSLAM 2.0 paper.
 singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (GaussianCamera, Double)
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _ (theta,phi)) = let
 	[cx,cy,cz,a,b,g] = toList mu_c
+	m2v (a,b) = 2|> [a,b]
 	ecam = ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 	
 	_Hl = jacobian_l ecam (lmu landmark)
 	_Hc = jacobian_c gcam (lmu landmark)
 	
-	_Z = _Hl <> lcov landmark <> trans _Hl -- correct
-	cov_c = inv (trans _Hc <> inv _Q <> _Hc + inv cov_c)
-	mu_c  = cov_c <> trans _Hc <> inv _Q <> (undefined - undefined :: Vector Double) + undefined
+	_Z = _Hl <> lcov landmark <> trans _Hl + measurement_cov -- correct
+	cov_c = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
+	mu_c  = cov_c <> trans _Hc <> inv _Z <> ((2|> [theta,phi]) - m2v (measure ecam $ lmu landmark)) + (3|> [cx,cy,cz])
 	in (GaussianCamera mu_c cov_c, undefined)
 	
 	
-
 cameraUpdate :: (GaussianCamera, Map) -> [Feature] -> (GaussianCamera, Double)
 cameraUpdate = undefined
 
+
 camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(GaussianCamera, Double)]
-camerasUpdate = undefined
-			
-cameraSample :: GaussianCamera -> ExactCamera
-cameraSample = undefined
+camerasUpdate ps fs = map (flip cameraUpdate $ fs) ps
+
+
+cameraSample :: GaussianCamera -> RVar ExactCamera
+cameraSample (GaussianCamera mu cov) = do
+	rndVec <- sequence (replicate 6 stdNormal)
+	let [cx,cy,cz,a,b,g] = toList $ mu + cov <> (6 |> rndVec)
+	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
+
 
 camerasSample :: [(Double, GaussianCamera)] -> [ExactCamera]
 camerasSample = undefined
