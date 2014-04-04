@@ -107,8 +107,17 @@ test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 		f_mu = lmu $ initialize cam (Feature undefined angles)
 		(a', b') = normalize $ measure cam f_mu
 		
+--------------------------------------------------------------------------------
+
+test_ea_rot = quickCheckWith stdArgs {maxSuccess = 10000} f where
+	f :: Triplet -> Bool
+	f (a,b,g) = m `mateq` (euler2rotmat . rotmat2euler $ m) where
+		m = euler2rotmat (3|> [a,b,g])
+		m1 `mateq` m2 = pnorm PNorm1 (abs (m2-m1)) <= 10^^(-12)
+
 main = do
 	test_e2v
 	test_jacobian_l
 	test_jacobian_c
 	test_initialize
+	test_ea_rot

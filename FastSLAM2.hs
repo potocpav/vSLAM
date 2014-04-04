@@ -23,7 +23,7 @@ findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 			
 			
 proposal :: ExactCamera -> (Vector Double -> GaussianCamera) -> GaussianCamera
-proposal = undefined
+proposal ec = undefined
 
 cameraUpdate :: GaussianCamera -> [Feature] -> (GaussianCamera, Double)
 cameraUpdate = undefined
@@ -33,7 +33,6 @@ camerasUpdate = undefined
 			
 cameraSample :: GaussianCamera -> ExactCamera
 cameraSample = undefined
-
 
 camerasSample :: [(Double, GaussianCamera)] -> [ExactCamera]
 camerasSample = undefined
