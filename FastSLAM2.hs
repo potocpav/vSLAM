@@ -3,7 +3,7 @@ module FastSLAM where
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.List (foldl')
---import Data.Random.Distribution.Categorical
+import Data.Random.Distribution.Categorical (weightedCategorical)
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Util ((&))
 import qualified Data.Set as S
@@ -29,12 +29,12 @@ findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 			
 -- | Transform the known camera position according to a supplied probabilistic
 -- function (that takes the previous pose as a 6-vector.
-proposal :: ExactCamera -> (Vector Double -> GaussianCamera) -> GaussianCamera
-proposal (ExactCamera cpos crot) f = f (cpos & rotmat2euler crot)
+proposal :: (Vector Double -> GaussianCamera) -> ExactCamera -> GaussianCamera
+proposal f (ExactCamera cpos crot) = f (cpos & rotmat2euler crot)
 
 
 -- | Implemented according to the original FastSLAM 2.0 paper.
-singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (GaussianCamera, Double)
+singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (Double, GaussianCamera)
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _ (theta,phi)) = let
 	[cx,cy,cz,a,b,g] = toList mu_c
 	m2v (a,b) = 2|> [a,b]
@@ -46,14 +46,18 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _
 	_Z = _Hl <> lcov landmark <> trans _Hl + measurement_cov -- correct
 	cov_c = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
 	mu_c  = cov_c <> trans _Hc <> inv _Z <> ((2|> [theta,phi]) - m2v (measure ecam $ lmu landmark)) + (3|> [cx,cy,cz])
-	in (GaussianCamera mu_c cov_c, undefined)
+	in (undefined, GaussianCamera mu_c cov_c)
 	
 	
-cameraUpdate :: (GaussianCamera, Map) -> [Feature] -> (GaussianCamera, Double)
-cameraUpdate = undefined
+cameraUpdate :: (GaussianCamera, Map) -> [Feature] -> (Double, GaussianCamera)
+cameraUpdate (cam, map) fs = foldl' 
+	(\(w',c') f -> case findLm (fid f) map of
+		Nothing -> (w',c')
+		Just lm -> singleFeatureCameraUpdate c' lm f
+	) (undefined, cam) fs
 
 
-camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(GaussianCamera, Double)]
+camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(Double, GaussianCamera)]
 camerasUpdate ps fs = map (flip cameraUpdate $ fs) ps
 
 
@@ -64,8 +68,8 @@ cameraSample (GaussianCamera mu cov) = do
 	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 
 
-camerasSample :: [(Double, GaussianCamera)] -> [ExactCamera]
-camerasSample = undefined
+camerasSample :: [(Double, GaussianCamera)] -> RVar [ExactCamera]
+camerasSample ps = sequence $ replicate (length ps) (cameraSample =<< weightedCategorical ps)
 
 		
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
@@ -93,49 +97,23 @@ singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of
 mapUpdate :: ExactCamera -> Map -> [Feature] -> Map
 mapUpdate cam m fs = foldl' (singleFeatureLandmarkUpdate cam) m fs
 
+
+filterUpdate :: [(ExactCamera, Map)] 
+             -> (Vector Double -> GaussianCamera) 
+             -> [Feature] 
+             -> RVar [(ExactCamera, Map)]
+filterUpdate input_state camTransition features = do 
+	let
+		input_cameras = map fst input_state
+		input_maps = map snd input_state
 	
-{-
-
--- | A single particle update routine, that is just mapped over in the updateParticles routine.
--- The weights of the resulting particle is properly computed, but it is not
--- normalized against the other existing particles.
-updateParticle :: Particle -> [Feature] -> (Camera -> RVar Camera) -> RVar Particle
-updateParticle (Particle w cams landmarks) fs h = do
-	new_cam <- h (head cams)
-	let new_cams = new_cam : cams
+		gaussian_proposals :: [GaussianCamera]
+		gaussian_proposals = map (proposal camTransition) input_cameras
 	
-	-- TODO: compute the particle weight
+		updated_cameras :: [(Double, GaussianCamera)]
+		updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
 	
-	let (w, new_landmarks) = updateMap new_cam fs landmarks
-	return $ Particle w new_cams new_landmarks
-
-
--- | The FastSLAM routine, that can just be repeated. Returns properly normalized
--- and resampled particles.
-updateParticles :: [Particle] -> [Feature] -> (Camera -> RVar Camera) -> RVar [Particle]
-updateParticles ps fs h = do
-	new_ps <- sequence (map (\p -> updateParticle p fs h) ps)
-	let norm_ps = normalizeWeights new_ps
-	when (needResampling norm_ps) resampleParticles' $ norm_ps where
-		when b f = if b then f else return
-
-
--- | Recursively resample the particles. The particle weights are put one
--- after another to fill the unit interval, then the particles are chosen
--- by equally-spaced points (with spacing (1/length ps)) in the interval.
-resampleParticles' :: [Particle] -> RVar [Particle]
-resampleParticles' pp = return $ ("nr.parts."`debug`length pp) `seq` resample' (n/2) pp where
-	n = 1 / fromIntegral (length pp)
-	-- | First argument is the position of the next sampling point in the unit interval
-	resample' :: Double -> [Particle] -> [Particle]
-	resample' _ [] = []
-	resample' i (Particle w c l:ps) = if i < w
-			then Particle n c l : resample' (i+n) (Particle w c l:ps)
-			else resample' (i-w) ps
-
-
--- | The sum of all weights is made to be equal to 1.
-normalizeWeights :: [Particle] -> [Particle]
-normalizeWeights ss = map (\(Particle w cams ls) -> Particle (w/sumw) cams ls) ss where
-		sumw = sum (map weight ss)
--}
+	resampled_cameras <- camerasSample updated_cameras
+	
+	-- let new_maps = map (\c -> mapUpdate c input_maps features) resampled_cameras
+	-- return $ zip resampled_cameras new_maps
