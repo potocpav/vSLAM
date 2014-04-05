@@ -26,7 +26,7 @@ ts = 0.01
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
 -- | The true camera position sequence, measurement history, and a particle set.
-data SLAMState = SLAM { cameras :: [ExactCamera], measurements :: [[Feature]], particles :: [(ExactCamera, Map)] }
+data SLAMState = SLAM { cameras :: [ExactCamera], measurements :: [[Feature]], camHistories :: [[ExactCamera]], particles :: [(ExactCamera, Map)] }
 
 data GameState = GameState { observer :: ObserverState
                            , input :: InputState
@@ -43,7 +43,7 @@ setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
 simfun :: Float -> GameState -> IO GameState
-simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss ps)) = do
+simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss chists ps)) = do
 	Size x y <- get windowSize
 	let 
 		x' = (fromIntegral x) `div` 2
@@ -58,8 +58,9 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 				meas
 	
 	-- | if space pressed, then copy the first camera. This has to be -after-
-	-- the Fast routine.
+	-- the FastSLAM routine.
 	let cams' = if spacePressed input' then head cams : cams else cams
+	let chists' = if spacePressed input' then (map fst ps') : chists else chists
 	
 	{- 'x' key behavior
 	when (xPressed input') $ do
@@ -80,7 +81,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 	return $ GameState 
 		(Running (pos + (ts *^ v)) v euler0) 
 		input' { lastMousePos = Just (x',y'), spacePressed = False, xPressed = False }
-		(SLAM ((newcam $ head cams'):tail cams') measure_history ps') where
+		(SLAM ((newcam $ head cams'):tail cams') measure_history chists' ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			newcam (ExactCamera cp cr) = ExactCamera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
 					rot = rotateYmat ((rturn-lturn)*ts)
@@ -124,9 +125,10 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
     
 
 drawfun :: GameState -> VisObject Double
-drawfun (GameState (Running _ _ _) _ (SLAM cams _ ps)) = VisObjects $ 
+drawfun (GameState (Running _ _ _) _ (SLAM cams _ chists ps)) = VisObjects $ 
 	[drawBackground, drawCamTrajectory 0.2 cams] 
-	-- ++ map drawParticle ps
+	++ map (drawMap.snd) ps
+	++ [drawCamTrajectory 1 (map head chists)]
 	++ map drawTrueLandmark trueMap
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
@@ -138,9 +140,9 @@ drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 0.5 0.5 0
 drawLandmark :: Int -> Landmark -> VisObject Double
 drawLandmark seed l = Points (map vec2v3 (take 50 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
-	
---drawParticle :: Particle -> VisObject Double
---drawParticle (Particle w cs _) = drawCamTrajectory w cs
+
+drawMap :: Map -> VisObject Double
+drawMap m = VisObjects $ map (drawLandmark 1) (Set.toList m)
 	
 -- | TODO: Display number
 drawTrueLandmark :: (LID, V3 Double) -> VisObject Double
@@ -160,11 +162,11 @@ drawCamTrajectory w (ExactCamera cp cr:cs) = VisObjects $
 	
 main :: IO ()
 main = do
-	let 
+	let
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM [ExactCamera (3|> repeat 0) (ident 3)] [] (replicate 1 (undefined,Set.empty) ))
+				(SLAM [ExactCamera (3|> repeat 0) (ident 3)] [] [] (replicate 1 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads

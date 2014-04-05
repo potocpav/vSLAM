@@ -108,4 +108,3 @@ jacobian_c (GaussianCamera mu _) l_mu = fromRows [e1', e2'] where
 	      scale (h_y / (xxzz + h_y*h_y) / sqrt xxzz) 
 			(scale h_x h_x' + scale h_z h_z')
 
-

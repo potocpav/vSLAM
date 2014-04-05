@@ -24,7 +24,7 @@ instance Ord Landmark where
 	compare a b = compare (lid a) (lid b)
 
 -- | Landmark projection, associated by lID with a landmark (which need not exist yet).
-data Feature = Feature  { fid :: LID, fProj :: (Double, Double) }
+data Feature = Feature  { fid :: LID, fProj :: (Double, Double) } deriving (Show)
 	
 type Map = S.Set Landmark
 

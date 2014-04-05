@@ -1,3 +1,5 @@
+{-# OPTIONS -Wall #-}
+
 module FastSLAM2 where
 
 import Numeric.LinearAlgebra
@@ -12,10 +14,8 @@ import Camera
 import Measurement
 import InternalMath
 
-import Data.Random
-import Data.Random.Source.DevRandom
-
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
+measurement_cov :: Matrix Double
 measurement_cov = diag (2|> [0.01, 0.01])
 
 
@@ -31,22 +31,22 @@ findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (Double, GaussianCamera)
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _ (theta,phi)) = let
 	[cx,cy,cz,a,b,g] = toList mu_c
-	m2v (a,b) = 2|> [a,b]
+	m2v (x,y) = 2|> [x,y]
 	ecam = ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 	
 	_Hl = jacobian_l ecam (lmu landmark)
 	_Hc = jacobian_c gcam (lmu landmark)
 	
 	_Z = _Hl <> lcov landmark <> trans _Hl + measurement_cov -- correct
-	cov_c = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
-	mu_c  = cov_c <> trans _Hc <> inv _Z <> ((2|> [theta,phi]) - m2v (measure ecam $ lmu landmark)) + (3|> [cx,cy,cz])
-	in (1, GaussianCamera mu_c cov_c)
+	cov_c' = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
+	mu_c'  = cov_c' <> trans _Hc <> inv _Z <> ((2|> [theta,phi]) - m2v (measure ecam $ lmu landmark)) + mu_c
+	in (1, GaussianCamera mu_c' cov_c')
 	
 	
 -- | TODO: Proper weight calculation
 cameraUpdate :: (GaussianCamera, Map) -> [Feature] -> (Double, GaussianCamera)
-cameraUpdate (cam, map) fs = foldl' 
-	(\(w',c') f -> case findLm (fid f) map of
+cameraUpdate (cam, map') fs = foldl' 
+	(\(w',c') f -> case findLm (fid f) map' of
 		Nothing -> (w',c')
 		Just lm -> singleFeatureCameraUpdate c' lm f
 	) (1, cam) fs
@@ -90,7 +90,7 @@ singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of
 		-- | TODO: Rewrite this function to take advantage of the multinormal pdf function written earlier
 		--w' = (det (2*pi*_S)) ** (-1/2) * exp ((-1/2 * asRow (z-z') <> inv _S <> asColumn (z-z')) @@> (0,0))
 		in S.insert (Landmark id_l mu' cov') m
-	Nothing -> S.insert (initialize cam f) $ debug "inserted" m
+	Nothing -> S.insert (initialize cam f) m
 
 
 mapUpdate :: ExactCamera -> Map -> [Feature] -> Map
@@ -120,3 +120,4 @@ filterUpdate input_state camTransition features = do
 		new_maps = map (\(c,m) -> mapUpdate c m features) resampled_state
 		
 	return $ zip (map fst resampled_state) new_maps
+

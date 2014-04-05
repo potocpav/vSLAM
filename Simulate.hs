@@ -52,8 +52,10 @@ proposal f (ExactCamera cpos crot) = f (cpos & rotmat2euler crot)
 
 camTransition :: [ExactCamera] -> ExactCamera -> GaussianCamera
 camTransition [] _ = undefined
-camTransition (ExactCamera cpos crot : _) _ = GaussianCamera (cpos & rotmat2euler crot) (ident 6)
--- camTransition (ExactCamera cp2 cr2:ExactCamera cp1 cr1:_) (ExactCamera cp cr)
+camTransition (ExactCamera cpos crot : []) _ = GaussianCamera (6|> repeat 0) ((6><6) (repeat 0))
+camTransition (ExactCamera cp cr : ExactCamera cp' cr': _) (ExactCamera ccp ccr) = let 
+	dp = cp - cp'
+	in GaussianCamera ((dp*0 + ccp) & rotmat2euler cr) (diag (6|> [0.1,0.1,0.1,0.1,0.1,0.1]))
 
 
 
