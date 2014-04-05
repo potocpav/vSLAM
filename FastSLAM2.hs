@@ -6,8 +6,7 @@ import Numeric.LinearAlgebra
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
-import Data.List (minimumBy, foldl')
-import Data.Fixed (mod') -- floating point modulo
+import Data.List (foldl')
 import qualified Data.Set as S
 
 import Landmark
@@ -32,7 +31,6 @@ findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (Double, GaussianCamera)
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _ (theta,phi)) = let
 	[cx,cy,cz,a,b,g] = toList mu_c
-	m2v (x,y) = 2|> [x,y]
 	ecam = ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 	
 	_Hl = jacobian_l ecam (lmu landmark)
@@ -42,12 +40,8 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _
 	cov_c' = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
 	mu_c'  = cov_c' <> trans _Hc <> inv _Z <> delta_z + mu_c
 	
-	delta_z = debug "delta_z" $ 2 |> [dtheta, phi - z_phi'] where
+	delta_z = 2 |> [theta `cyclicDiff` z_theta', phi - z_phi'] where
 		(z_theta', z_phi') = measure ecam $ lmu landmark
-		-- This is because of the discontinuity, that arises, when the measurement
-		-- pair (before and after) crosses 'abs(theta) == pi'
-		dtheta = let dth = theta - z_theta' in
-			minimumBy (\a b -> abs a `compare` abs b) [dth, dth+2*pi,dth-2*pi]
 	
 	in (1, GaussianCamera mu_c' cov_c')
 	
@@ -89,11 +83,11 @@ singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of
 		_K = cov_l <> trans _H <> inv _S
 		_P = (ident 6 - _K <> _H) <> cov_l
 		
-		m2v (a,b) = 2|> [a,b]
-		z' = m2v $ measure cam mu_l -- re-projected landmark
-		z = m2v $ fProj f		    -- newly observed feature
+		(z_theta',z_phi') = measure cam mu_l -- re-projected landmark
+		(z_theta, z_phi)  = fProj f		    -- newly observed feature
 		
-		mu' = mu_l + _K <> (z-z')
+		mu' = mu_l + _K <> (2|> [z_theta `cyclicDiff` z_theta', z_phi - z_phi'])
+			
 		cov' = _P
 		-- | TODO: ?remove the measurement error from this _S coefficient?
 		-- | TODO: Rewrite this function to take advantage of the multinormal pdf function written earlier

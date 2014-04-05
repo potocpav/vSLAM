@@ -29,4 +29,5 @@ toXYZ :: Vector Double -> Vector Double
 toXYZ i = (3|> [x,y,z]) + scale (1/rho) (euler2vec (theta,phi)) where
 	[x,y,z,theta,phi,rho] = toList i
 
-
+cyclicDiff :: Double -> Double -> Double
+cyclicDiff a b = a - b - (fromIntegral . round $ (a-b) / (2*pi)) * (2*pi)
