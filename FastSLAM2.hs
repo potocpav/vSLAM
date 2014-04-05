@@ -6,7 +6,8 @@ import Numeric.LinearAlgebra
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
-import Data.List (foldl')
+import Data.List (minimumBy, foldl')
+import Data.Fixed (mod') -- floating point modulo
 import qualified Data.Set as S
 
 import Landmark
@@ -39,7 +40,15 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _
 	
 	_Z = _Hl <> lcov landmark <> trans _Hl + measurement_cov -- correct
 	cov_c' = inv (trans _Hc <> inv _Z <> _Hc + inv cov_c)
-	mu_c'  = cov_c' <> trans _Hc <> inv _Z <> ((2|> [theta,phi]) - m2v (measure ecam $ lmu landmark)) + mu_c
+	mu_c'  = cov_c' <> trans _Hc <> inv _Z <> delta_z + mu_c
+	
+	delta_z = debug "delta_z" $ 2 |> [dtheta, phi - z_phi'] where
+		(z_theta', z_phi') = measure ecam $ lmu landmark
+		-- This is because of the discontinuity, that arises, when the measurement
+		-- pair (before and after) crosses 'abs(theta) == pi'
+		dtheta = let dth = theta - z_theta' in
+			minimumBy (\a b -> abs a `compare` abs b) [dth, dth+2*pi,dth-2*pi]
+	
 	in (1, GaussianCamera mu_c' cov_c')
 	
 	

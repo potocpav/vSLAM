@@ -19,7 +19,7 @@ trueMap :: [(LID, V3 Double)]
 trueMap =
 	[ (LID 1, V3 5 0 5)
 	, (LID 2, V3 5 0 0)
-	, (LID 3, V3 0 0 5)
+	, (LID 3, V3 2 0 (-5))
 	, (LID 4, V3 10 (-3) 5)
 	, (LID 5, V3 5 3 10)
 	, (LID 6, V3 (-5) 0 0)
