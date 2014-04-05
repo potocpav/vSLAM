@@ -24,6 +24,7 @@ trueMap =
 	, (LID 5, V3 5 3 10)
 	, (LID 6, V3 (-5) 0 0)
 	, (LID 7, V3 (5) (-3) (-10))
+	, (LID 8, V3 (-50) 20 (-50))
 	]
 
 {- [V3 5 0 0, V3 0 0 5, V3 0 1 5, V3 5 5 5, V3 (-3) (-1.5) (-2) {-, V3 (-3000) (-3000) 3000-}] -}
@@ -55,7 +56,7 @@ camTransition [] _ = undefined
 camTransition (ExactCamera cpos crot : []) _ = GaussianCamera (6|> repeat 0) ((6><6) (repeat 0))
 camTransition (ExactCamera cp cr : ExactCamera cp' cr': _) (ExactCamera ccp ccr) = let 
 	dp = cp - cp'
-	in GaussianCamera ((dp*0 + ccp) & rotmat2euler cr) (diag (6|> [0.1,0.1,0.1,0.1,0.1,0.1]))
+	in GaussianCamera ((dp*0 + ccp) & rotmat2euler cr) (diag (6|> [0.1,0.1,0.1,0.01,0.01,0.01]))
 
 
 

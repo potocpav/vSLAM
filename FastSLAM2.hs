@@ -16,7 +16,7 @@ import InternalMath
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [0.01, 0.01])
+measurement_cov = diag (2|> [0.001, 0.001])
 
 
 -- | Find a landmark with a specified ID in a map.
