@@ -50,20 +50,10 @@ proposal :: (Vector Double -> GaussianCamera) -> ExactCamera -> GaussianCamera
 proposal f (ExactCamera cpos crot) = f (cpos & rotmat2euler crot)
 
 
-
--- | The first ExactCamera argument is the 'true' ExactCamera position, that the oracle
--- told us. The ExactCameras are the lists of positions in time (t:t-1:t-2:...).
--- The 'true' ExactCamera input is one step more advanced (one item longer list),
--- than the second argument.
-camTransition :: ExactCamera -> GaussianCamera
-camTransition :: [ExactCamera] -> ExactCamera -> RVar ExactCamera
+camTransition :: [ExactCamera] -> ExactCamera -> GaussianCamera
 camTransition [] _ = undefined
-camTransition (c1:[]) _ = return c1
-camTransition (ExactCamera cp2 cr2:ExactCamera cp1 cr1:_) (ExactCamera cp cr) = do
-	[xdev,ydev,zdev,wdev] <- sequence . take 4 $ repeat stdNormal
-	let posdev = 3|> [xdev*0.1,ydev*0.0,zdev*0.1]
-	let thetadev = wdev * 0.1
-	return $ ExactCamera (cp + movement*0 + posdev) (cr <> rotation <> rotateYmat thetadev) where
-		(movement, rotation) = (cp2 - cp1, cr2 <> trans cr1)
+camTransition (ExactCamera cpos crot : _) _ = GaussianCamera (cpos & rotmat2euler crot) (ident 6)
+-- camTransition (ExactCamera cp2 cr2:ExactCamera cp1 cr1:_) (ExactCamera cp cr)
+
 
 

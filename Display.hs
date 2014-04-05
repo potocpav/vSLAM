@@ -164,7 +164,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM [ExactCamera (3|> repeat 0) (ident 3)] [] (replicate 100 ([(undefined,undefined)]) ))
+				(SLAM [ExactCamera (3|> repeat 0) (ident 3)] [] (replicate 1 (undefined,Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
