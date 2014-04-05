@@ -1,11 +1,10 @@
-module FastSLAM where
+module FastSLAM2 where
 
+import Numeric.LinearAlgebra
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
-import Data.List (foldl')
 import Data.Random.Distribution.Categorical (weightedCategorical)
-import Numeric.LinearAlgebra
-import Numeric.LinearAlgebra.Util ((&))
+import Data.List (foldl')
 import qualified Data.Set as S
 
 import Landmark
@@ -25,12 +24,6 @@ findLm :: LID -> Map -> Maybe Landmark
 findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 	dummyLm = Landmark id undefined undefined
 	mGE_lm = S.lookupGE dummyLm lms
-			
-			
--- | Transform the known camera position according to a supplied probabilistic
--- function (that takes the previous pose as a 6-vector.
-proposal :: (Vector Double -> GaussianCamera) -> ExactCamera -> GaussianCamera
-proposal f (ExactCamera cpos crot) = f (cpos & rotmat2euler crot)
 
 
 -- | Implemented according to the original FastSLAM 2.0 paper.
@@ -69,10 +62,14 @@ cameraSample (GaussianCamera mu cov) = do
 
 
 -- | TODO: change the function to match the new signature
-camerasSample :: [(Double, GaussianCamera, Map)] -> RVar [(ExactCamera, Map)]
-camerasSample ps = sequence $ replicate (length ps) (cameraSample =<< weightedCategorical ps)
+camerasSample :: [(Double, (GaussianCamera, Map))] -> RVar [(ExactCamera, Map)]
+camerasSample ps = sequence $ replicate (length ps) 
+		(particleSample =<< weightedCategorical ps) where
+	particleSample (c,m) = do
+		c' <- cameraSample c
+		return (c',m)
 
-		
+
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
 singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of 
 	Just (Landmark id_l mu_l cov_l) -> let
@@ -99,7 +96,7 @@ mapUpdate cam m fs = foldl' (singleFeatureLandmarkUpdate cam) m fs
 
 
 filterUpdate :: [(ExactCamera, Map)] 
-             -> (Vector Double -> GaussianCamera) 
+             -> (ExactCamera -> GaussianCamera) 
              -> [Feature] 
              -> RVar [(ExactCamera, Map)]
 filterUpdate input_state camTransition features = do 
@@ -108,16 +105,16 @@ filterUpdate input_state camTransition features = do
 		input_maps = map snd input_state
 	
 		gaussian_proposals :: [GaussianCamera]
-		gaussian_proposals = map (proposal camTransition) input_cameras
+		gaussian_proposals = map camTransition input_cameras
 	
 		updated_cameras :: [(Double, GaussianCamera)]
 		updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
 	
 	-- resampled_state :: [(ExactCamera, Map)]
-	resampled_state <- camerasSample updated_cameras
-	
+	resampled_state <- camerasSample $ zipWith (\(a,b) m -> (a,(b,m))) updated_cameras input_maps
 	
 	let 
 		new_maps :: [Map]
 		new_maps = map (\(c,m) -> mapUpdate c m features) resampled_state
+		
 	return $ zip (map fst resampled_state) new_maps

@@ -14,9 +14,10 @@ import Data.Random.Source.DevRandom
 import Numeric.LinearAlgebra
 
 import InternalMath
-import Feature
+import Landmark
+import Camera
 import Simulate
-import FastSLAM
+import FastSLAM2
 
 ts :: Double
 ts = 0.01
@@ -25,7 +26,7 @@ ts = 0.01
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
 -- | The true camera position sequence, measurement history, and a particle set.
-data SLAMState = SLAM { cameras :: [Camera], measurements :: [[Feature]], particles :: [Particle] }
+data SLAMState = SLAM { cameras :: [ExactCamera], measurements :: [[Feature]], particles :: [(ExactCamera, Map)] }
 
 data GameState = GameState { observer :: ObserverState
                            , input :: InputState
@@ -51,10 +52,10 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 	let measure_history = if spacePressed input' then meas:mss else mss
 	-- | Run the FastSLAM routine
 	ps' <- if not (spacePressed input') then return ps else
-		(flip runRVar) DevURandom $ updateParticles 
+		(flip runRVar) DevURandom $ filterUpdate
 				ps
-				meas
 				(camTransition cams)
+				meas
 	
 	-- | if space pressed, then copy the first camera. This has to be -after-
 	-- the Fast routine.
@@ -81,7 +82,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM cams mss
 		input' { lastMousePos = Just (x',y'), spacePressed = False, xPressed = False }
 		(SLAM ((newcam $ head cams'):tail cams') measure_history ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
-			newcam (Camera cp cr) = Camera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
+			newcam (ExactCamera cp cr) = ExactCamera (cp + cr <> (3|> [right-left,0,up-down])) (cr <> rot) where
 					rot = rotateYmat ((rturn-lturn)*ts)
 					up    = if keyPressed 'u' then ts else 0
 					down  = if keyPressed 'e' then ts else 0
@@ -125,17 +126,10 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
 drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running _ _ _) _ (SLAM cams _ ps)) = VisObjects $ 
 	[drawBackground, drawCamTrajectory 0.2 cams] 
-	++ map drawParticle ps
+	-- ++ map drawParticle ps
 	++ map drawTrueLandmark trueMap
-	++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
+	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
-	
--- | The map estimate of the particle with max weight
-mergeMapsMAP :: [Particle] -> Map
-mergeMapsMAP [] = Set.empty
-mergeMapsMAP ps = landmarks max_particle where
-	max_particle :: Particle
-	max_particle = foldl1 max ps
    
 drawBackground :: VisObject Double
 drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1)]
@@ -145,18 +139,18 @@ drawLandmark :: Int -> Landmark -> VisObject Double
 drawLandmark seed l = Points (map vec2v3 (take 50 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 	
-drawParticle :: Particle -> VisObject Double
-drawParticle (Particle w cs _) = drawCamTrajectory w cs
+--drawParticle :: Particle -> VisObject Double
+--drawParticle (Particle w cs _) = drawCamTrajectory w cs
 	
 -- | TODO: Display number
 drawTrueLandmark :: (LID, V3 Double) -> VisObject Double
 drawTrueLandmark (lid, pos) = Trans pos $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
 -- | Draw a camera with a pre-set weight
-drawCamTrajectory :: Double -> [Camera] -> VisObject Double
+drawCamTrajectory :: Double -> [ExactCamera] -> VisObject Double
 drawCamTrajectory _ [] = VisObjects []
-drawCamTrajectory w (Camera cp cr:cs) = VisObjects $
-	Line (v2V cp : map (\(Camera p _) -> v2V p) cs) (makeColor 0 0 1 1) : [drawCam]
+drawCamTrajectory w (ExactCamera cp cr:cs) = VisObjects $
+	Line (v2V cp : map (\(ExactCamera p _) -> v2V p) cs) (makeColor 0 0 1 1) : [drawCam]
 		 where
 			drawCam = Trans (v2V cp) $ VisObjects 
 					[ Cube w Wireframe (makeColor 1 0 0 1)
@@ -170,7 +164,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM [Camera (3|> repeat 0) (ident 3)] [] (replicate 100 (Particle 1 [] Set.empty) ))
+				(SLAM [ExactCamera (3|> repeat 0) (ident 3)] [] (replicate 100 ([(undefined,undefined)]) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
