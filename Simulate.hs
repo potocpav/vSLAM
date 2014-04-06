@@ -56,7 +56,7 @@ camTransition [] _ = undefined
 camTransition (ExactCamera cpos crot : []) _ = GaussianCamera (6|> repeat 0) ((6><6) (repeat 0))
 camTransition (ExactCamera cp cr : ExactCamera cp' cr': _) (ExactCamera ccp ccr) = let 
 	dp = cp - cp'
-	in GaussianCamera ((dp*0 + ccp) & rotmat2euler cr) (diag (6|> [0.1,0.1,0.1,0.01,0.01,0.01]))
+	in GaussianCamera ((dp*0 + ccp) & rotmat2euler ccr) (diag (6|> [0.1,0.1,0.01,0.1,0.01,0.01]))
 
 
 
