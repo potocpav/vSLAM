@@ -3,6 +3,8 @@ module InternalMath where
 
 import Numeric.LinearAlgebra
 
+import Control.Exception
+
 -- for debugging
 import System.IO.Unsafe (unsafePerformIO)
 debug :: Show a => String -> a -> a
@@ -10,6 +12,15 @@ debug s a = a `seq` unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
 infixr 1 `debug`
 
 data Gauss = Gauss {gmu :: Vector Double, gcov :: Matrix Double}
+
+
+-- | Compute the pdf of a multivariate normal distribution at the point m.
+normalDensity :: Gauss -> Vector Double -> Double
+normalDensity (Gauss mu cov) m = norm * exp e where 
+	norm = (2*pi)**(-(fromIntegral$dim mu)/2) * (det cov)**(-0.5)
+	e = (-0.5) * unpack (asRow(m-mu) <> inv cov <> asColumn(m-mu))
+	unpack m = assert (rows m == 1 && cols m == 1) $ m @@> (0,0)
+	
 
 -- | Un-normalized 3-vec parametrization to azimuth-elevation pair
 vec2euler :: Vector Double -> (Double, Double)
