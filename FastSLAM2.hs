@@ -58,10 +58,6 @@ cameraUpdate cam lfs = foldl'
 		Just (w, f) -> (w' * w, singleFeatureCameraUpdate c' l f)
 	) (1, cam) lfs
 
-{-
-camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(Double, GaussianCamera)]
-camerasUpdate ps fs = map (flip cameraUpdate $ fs) ps
--}
 
 cameraSample :: GaussianCamera -> RVar ExactCamera
 cameraSample (GaussianCamera mu cov) = do
@@ -127,11 +123,11 @@ filterUpdate :: [(ExactCamera, Map)]
              -> RVar [(ExactCamera, Map)]
 filterUpdate input_state camTransition features = do 
 	let
-		gaussian_mixture :: [(Double, (GaussianCamera, Map))]
+		--gaussian_mixture :: [(Double, (GaussianCamera, Map), [(Maybe LID, Feature)])]
 		gaussian_mixture = do -- each particle in isolation (List Monad)
-		   (input_camera, input_map) <- input_state
+		  (input_camera, input_map) <- input_state
 	
-		   let
+		  let
 			gaussian_proposal :: GaussianCamera
 			gaussian_proposal = camTransition input_camera
 		
@@ -148,13 +144,8 @@ filterUpdate input_state camTransition features = do
 			updated_camera :: (Double, GaussianCamera)
 			updated_camera = cameraUpdate gaussian_proposal (zip searched_lms matched_features)
 			
-		   return $ (\(w,c) -> (w, (c, input_map))) updated_camera
-	
-		-- guidedMatch
-	
-		--updated_cameras :: [(Double, GaussianCamera)]
-		--updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
-	
+		  return $ (\(w,c) -> (w, (c, input_map))) updated_camera
+
 	-- resampled_state :: [(ExactCamera, Map)]
 	resampled_state <- camerasSample gaussian_mixture
 	

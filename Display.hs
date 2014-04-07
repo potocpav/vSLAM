@@ -128,7 +128,7 @@ drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running _ _ _) _ (SLAM cams _ chists ps)) = VisObjects $ 
 	[drawBackground, drawCamTrajectory 0.2 cams] 
 	++ map (drawMap.snd) ps
-	++ [drawCamTrajectory 1 (map head chists)]
+	++ [drawCamTrajectory 0.1 (map head chists)]
 	++ map drawTrueLandmark trueMap
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
