@@ -8,6 +8,7 @@ import Numeric.LinearAlgebra.Util ((&))
 import Data.Random (RVar, runRVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Source.DevRandom
+import System.Random
 
 import Landmark
 import Linear
@@ -16,16 +17,9 @@ import InternalMath
 
 -- | Create a map, consisting of some predefined landmarks.
 trueMap :: [(LID, V3 Double)]
-trueMap =
-	[ (LID 1, V3 5 0 5)
-	, (LID 2, V3 5 0 0)
-	, (LID 3, V3 2 0 (-5))
-	, (LID 4, V3 10 (-3) 5)
-	, (LID 5, V3 5 3 10)
-	, (LID 6, V3 (-5) 0 0)
-	, (LID 7, V3 (5) (-3) (-10))
-	, (LID 8, V3 (-50) 20 (-50))
-	]
+trueMap = makeLandmark (randoms $ mkStdGen 1) 10 where
+	makeLandmark _ 0 = []
+	makeLandmark (x:y:z:ss) i = (LID i, V3 ((x-0.5)*20) ((y-0.5)*20) ((z-0.5)*20)) : makeLandmark ss (i-1)
 
 {- [V3 5 0 0, V3 0 0 5, V3 0 1 5, V3 5 5 5, V3 (-3) (-1.5) (-2) {-, V3 (-3000) (-3000) 3000-}] -}
 

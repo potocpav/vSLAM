@@ -9,6 +9,8 @@ debug :: Show a => String -> a -> a
 debug s a = a `seq` unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
 infixr 1 `debug`
 
+data Gauss = Gauss {gmu :: Vector Double, gcov :: Matrix Double}
+
 -- | Un-normalized 3-vec parametrization to azimuth-elevation pair
 vec2euler :: Vector Double -> (Double, Double)
 vec2euler v = (atan2 x z, atan2 (-y) (sqrt(x*x + z*z))) where

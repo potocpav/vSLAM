@@ -47,10 +47,10 @@ measure c f = vec2euler $ measure_h c f
 
 -- | Measurement equation jacobian with respect to the landmark
 jacobian_l :: ExactCamera -> Vector Double -> Matrix Double
-jacobian_l (cam@(ExactCamera cpos crot)) f = fromRows [e1', e2'] where
-	[x, y, z, theta, phi, rho] = toList f
+jacobian_l (cam@(ExactCamera cpos crot)) l = fromRows [e1', e2'] where
+	[x, y, z, theta, phi, rho] = toList l
 	[x_c, y_c, z_c] = toList cpos
-	[h_x, h_y, h_z] = toList $ measure_h cam f
+	[h_x, h_y, h_z] = toList $ measure_h cam l
 	[h_x', h_y', h_z'] = toRows h'
 	h' = trans crot <> ((3><6) 
 		[ rho,   0,   0,  cos theta * cos phi, -sin theta * sin phi, x - x_c

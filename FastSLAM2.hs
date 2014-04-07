@@ -2,11 +2,11 @@
 
 module FastSLAM2 where
 
-import Numeric.LinearAlgebra
+import Numeric.LinearAlgebra hiding (find)
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
-import Data.List (foldl')
+import Data.List (foldl', find)
 import qualified Data.Set as S
 
 import Landmark
@@ -24,14 +24,64 @@ findLm :: LID -> Map -> Maybe Landmark
 findLm id lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
 	dummyLm = Landmark id undefined undefined
 	mGE_lm = S.lookupGE dummyLm lms
+	
+
+-- | Return 2D gaussian of search coordinates in projective space (theta, phi)
+searchRegion :: (GaussianCamera, Landmark) -> (LID, Gauss)
+searchRegion (gcam@(GaussianCamera mu_c cov_c), Landmark i mu_l cov_l) = (i, Gauss mu' cov') where
+	ecam = gauss2exact gcam
+	mu' = (\(t,p) -> 2|> [t,p]) $ measure ecam mu_l
+	
+	jc = jacobian_c gcam mu_l
+	jl = jacobian_l ecam mu_l
+	cov' = jc * cov_c * trans jc + jl * cov_l * trans jl + measurement_cov
+	
+	
+-- | Chose all landmarks present
+choseLandmarks :: Map -> [Landmark]
+choseLandmarks ms = S.toList ms
+	
+
+-- | For now, ignoring the gaussian and performing exhaustive search for the
+-- matching LID
+guidedMatch :: (LID, Gauss) -> [Feature] -> Maybe (Double, Feature)
+guidedMatch (i, Gauss mu' cov') fs = do
+	feature <- find (\f -> fid f == i) fs
+	return (1, feature)
+	
+	
+-- | TODO: Proper weight calculation
+cameraUpdate :: GaussianCamera -> [(Landmark, Maybe (Double, Feature))] -> (Double, GaussianCamera)
+cameraUpdate cam lfs = foldl' 
+	(\(w',c') (l, mfs) -> case mfs of
+		Nothing -> (w',c')
+		Just (w, f) -> (w' * w, singleFeatureCameraUpdate c' l f)
+	) (1, cam) lfs
+
+{-
+camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(Double, GaussianCamera)]
+camerasUpdate ps fs = map (flip cameraUpdate $ fs) ps
+-}
+
+cameraSample :: GaussianCamera -> RVar ExactCamera
+cameraSample (GaussianCamera mu cov) = do
+	rndVec <- sequence (replicate 6 stdNormal)
+	let [cx,cy,cz,a,b,g] = toList $ mu + cov <> (6 |> rndVec)
+	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
+
+
+camerasSample :: [(Double, (GaussianCamera, Map))] -> RVar [(ExactCamera, Map)]
+camerasSample ps = sequence $ replicate (length ps) 
+		(particleSample =<< weightedCategorical ps) where
+	particleSample (c,m) = do
+		c' <- cameraSample c
+		return (c',m)
 
 
 -- | Implemented according to the original FastSLAM 2.0 paper.
--- TODO: weight calculation
-singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> (Double, GaussianCamera)
+singleFeatureCameraUpdate :: GaussianCamera -> Landmark -> Feature -> GaussianCamera
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _ (theta,phi)) = let
-	[cx,cy,cz,a,b,g] = toList mu_c
-	ecam = ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
+	ecam = gauss2exact gcam
 	
 	_Hl = jacobian_l ecam (lmu landmark)
 	_Hc = jacobian_c gcam (lmu landmark)
@@ -43,37 +93,8 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) landmark (Feature _
 	delta_z = 2 |> [theta `cyclicDiff` z_theta', phi - z_phi'] where
 		(z_theta', z_phi') = measure ecam $ lmu landmark
 	
-	in (1, GaussianCamera mu_c' cov_c')
+	in GaussianCamera mu_c' cov_c'
 	
-	
--- | TODO: Proper weight calculation
-cameraUpdate :: (GaussianCamera, Map) -> [Feature] -> (Double, GaussianCamera)
-cameraUpdate (cam, map') fs = foldl' 
-	(\(w',c') f -> case findLm (fid f) map' of
-		Nothing -> (w',c')
-		Just lm -> singleFeatureCameraUpdate c' lm f
-	) (1, cam) fs
-
-
-camerasUpdate :: [(GaussianCamera, Map)] -> [Feature] -> [(Double, GaussianCamera)]
-camerasUpdate ps fs = map (flip cameraUpdate $ fs) ps
-
-
-cameraSample :: GaussianCamera -> RVar ExactCamera
-cameraSample (GaussianCamera mu cov) = do
-	rndVec <- sequence (replicate 6 stdNormal)
-	let [cx,cy,cz,a,b,g] = toList $ mu + cov <> (6 |> rndVec)
-	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
-
-
--- | TODO: change the function to match the new signature
-camerasSample :: [(Double, (GaussianCamera, Map))] -> RVar [(ExactCamera, Map)]
-camerasSample ps = sequence $ replicate (length ps) 
-		(particleSample =<< weightedCategorical ps) where
-	particleSample (c,m) = do
-		c' <- cameraSample c
-		return (c',m)
-
 
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
 singleFeatureLandmarkUpdate cam m f = case findLm (fid f) m of 
@@ -106,17 +127,36 @@ filterUpdate :: [(ExactCamera, Map)]
              -> RVar [(ExactCamera, Map)]
 filterUpdate input_state camTransition features = do 
 	let
-		input_cameras = map fst input_state
-		input_maps = map snd input_state
+		gaussian_mixture :: [(Double, (GaussianCamera, Map))]
+		gaussian_mixture = do -- each particle in isolation (List Monad)
+		   (input_camera, input_map) <- input_state
 	
-		gaussian_proposals :: [GaussianCamera]
-		gaussian_proposals = map camTransition input_cameras
+		   let
+			gaussian_proposal :: GaussianCamera
+			gaussian_proposal = camTransition input_camera
+		
+			-- one item in the top-level list for one particle
+			searched_lms :: [Landmark]
+			searched_lms = choseLandmarks input_map
+		
+			searched_regions :: [(LID, Gauss)]
+			searched_regions = map (curry searchRegion $ gaussian_proposal) searched_lms
+			
+			matched_features :: [Maybe (Double, Feature)]
+			matched_features = map ((flip guidedMatch) features) searched_regions
+			
+			updated_camera :: (Double, GaussianCamera)
+			updated_camera = cameraUpdate gaussian_proposal (zip searched_lms matched_features)
+			
+		   return $ (\(w,c) -> (w, (c, input_map))) updated_camera
 	
-		updated_cameras :: [(Double, GaussianCamera)]
-		updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
+		-- guidedMatch
+	
+		--updated_cameras :: [(Double, GaussianCamera)]
+		--updated_cameras = camerasUpdate (zip gaussian_proposals input_maps) features
 	
 	-- resampled_state :: [(ExactCamera, Map)]
-	resampled_state <- camerasSample $ zipWith (\(a,b) m -> (a,(b,m))) updated_cameras input_maps
+	resampled_state <- camerasSample gaussian_mixture
 	
 	let 
 		new_maps :: [Map]

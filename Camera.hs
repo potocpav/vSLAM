@@ -12,6 +12,9 @@ data ExactCamera = ExactCamera { cpos :: Vector Double, crot :: Matrix Double }
 data GaussianCamera = GaussianCamera { cmu :: Vector Double, ccov :: Matrix Double } 
 	deriving (Show)
 
+gauss2exact :: GaussianCamera -> ExactCamera
+gauss2exact cam = ExactCamera (3|> [x,y,z]) (euler2rotmat (3|> [a,b,g])) where
+	[x,y,z,a,b,g] = toList (cmu cam)
 
 -- | Return one possible triplet of euler angles, corresponding to the given
 -- rotation matrix
