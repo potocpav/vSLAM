@@ -47,7 +47,8 @@ choseLandmarks ms = S.toList ms
 guidedMatch :: (LID, Gauss) -> [Feature] -> Maybe (Double, Feature)
 guidedMatch (i, g@(Gauss mu' cov')) fs = do
 	feature <- find (\f -> fid f == i) fs
-	return (normalDensity g ((\(a,b) -> 2|> [a,b]) (fProj feature)), feature)
+	return (w feature, feature) where
+		w f = normalDensity g ((\(a,b) -> 2|> [a,b]) (fProj f))
 	
 	
 cameraUpdate :: GaussianCamera -> [(Landmark, Maybe (Double, Feature))] -> (Double, GaussianCamera)
