@@ -50,11 +50,10 @@ guidedMatch (i, Gauss mu' cov') fs = do
 	return (1, feature)
 	
 	
--- | TODO: Proper weight calculation
 cameraUpdate :: GaussianCamera -> [(Landmark, Maybe (Double, Feature))] -> (Double, GaussianCamera)
 cameraUpdate cam lfs = foldl' 
 	(\(w',c') (l, mfs) -> case mfs of
-		Nothing -> (w',c')
+		Nothing -> (w',c') -- TODO: degrade the weight when the feature was not matched
 		Just (w, f) -> (w' * w, singleFeatureCameraUpdate c' l f)
 	) (1, cam) lfs
 
