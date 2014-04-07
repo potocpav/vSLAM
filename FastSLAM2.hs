@@ -2,7 +2,7 @@
 
 module FastSLAM2 where
 
-import Numeric.LinearAlgebra hiding (find)
+import Numeric.LinearAlgebra hiding (find, i)
 import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
@@ -34,7 +34,7 @@ searchRegion (gcam@(GaussianCamera mu_c cov_c), Landmark i mu_l cov_l) = (i, Gau
 	
 	jc = jacobian_c gcam mu_l
 	jl = jacobian_l ecam mu_l
-	cov' = jc * cov_c * trans jc + jl * cov_l * trans jl + measurement_cov
+	cov' = jc <> cov_c <> trans jc + jl <> cov_l <> trans jl + measurement_cov
 	
 	
 -- | Chose all landmarks present

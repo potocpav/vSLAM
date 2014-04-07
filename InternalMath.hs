@@ -11,7 +11,7 @@ debug :: Show a => String -> a -> a
 debug s a = a `seq` unsafePerformIO (print $ s ++ ": " ++ show a) `seq` a
 infixr 1 `debug`
 
-data Gauss = Gauss {gmu :: Vector Double, gcov :: Matrix Double}
+data Gauss = Gauss {gmu :: Vector Double, gcov :: Matrix Double} deriving (Show)
 
 
 -- | Compute the pdf of a multivariate normal distribution at the point m.
