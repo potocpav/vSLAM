@@ -19,7 +19,7 @@ import InternalMath
 trueMap :: [(LID, V3 Double)]
 trueMap = makeLandmark (randoms $ mkStdGen 1) 10 where
 	makeLandmark _ 0 = []
-	makeLandmark (x:y:z:ss) i = (LID i, V3 ((x-0.5)*20) ((y-0.5)*10) ((z-0.5)*20)) : makeLandmark ss (i-1)
+	makeLandmark (x:y:z:ss) i = (LID i, V3 ((x-0.5)*100) ((y-0.5)*100) ((z-0.5)*50)) : makeLandmark ss (i-1)
 
 measurePoint :: ExactCamera -> (LID, V3 Double) -> RVar Feature
 measurePoint (ExactCamera cp cr) (lid, (V3 x y z)) = do

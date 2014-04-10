@@ -19,11 +19,14 @@ initialRho = 0.2
 
 -- | Initialize a landmark from a single measurement. Tuple contains mean theta and phi angles,
 -- relative to the robot (the bearing of an observed feature).
--- TODO: implement the angle computations
+-- TODO: assert that feature is not associated with any landmark
 initialize :: ExactCamera -> Feature -> Landmark
-initialize (ExactCamera cpos crot) (Feature landmark_id angles) = Landmark
-		landmark_id  (join [cpos, 3 |> [theta, phi, initialRho]])  initialCov where
-	h = euler2vec angles
+initialize (ExactCamera cpos crot) feature = Landmark
+		undefined 
+		(join [cpos, 3 |> [theta, phi, initialRho]])  
+		initialCov 
+		(descriptor feature) where
+	h = euler2vec (fpos feature)
 	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
 
 --------------------------------------------------------------------------------

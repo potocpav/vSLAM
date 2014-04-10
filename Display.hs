@@ -139,7 +139,7 @@ drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 0.5 0.5 0
 
 -- | Takes the seed as an argument.
 drawLandmark :: Int -> Landmark -> VisObject Double
-drawLandmark seed l = Points (map vec2v3 (take 5 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
+drawLandmark seed l = Points (map vec2v3 (take 50 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 
 drawMap :: Map -> VisObject Double
