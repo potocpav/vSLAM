@@ -21,6 +21,10 @@ normalDensity (Gauss mu cov) m = norm * exp e where
 	e = (-0.5) * unpack (asRow(m-mu) <> inv cov <> asColumn(m-mu))
 	unpack m = assert (rows m == 1 && cols m == 1) $ m @@> (0,0)
 	
+-- | Mahalanobis distance
+mahalDist :: Gauss -> Vector Double -> Double
+mahalDist (Gauss mu cov) x = sqrt $ (asRow (x-mu) <> inv cov <> asColumn(x-mu)) @@> (0,0)
+	
 
 -- | Un-normalized 3-vec parametrization to azimuth-elevation pair
 vec2euler :: Vector Double -> (Double, Double)

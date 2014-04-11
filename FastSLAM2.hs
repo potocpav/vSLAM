@@ -45,8 +45,9 @@ choseLandmarks ms = S.toList ms
 -- | Attempt to guided-match a feature to a given landmark. The result is saved
 -- into a matching feature $ set element.
 guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> (Double, S.Set Feature)
-guidedMatch (lm, g@(Gauss mu' cov')) fs = let
-	neighbors = S.filter (\f -> True) fs
+guidedMatch (lm, g) fs = let
+	f_pos f = (\(a,b) -> 2|> [a,b]) $ fpos f
+	neighbors = S.filter (\f -> mahalDist g (f_pos f) < 3) fs
 	updated :: Maybe Feature
 	updated = do
 		chosen <- S.foldl' (\f1' f2 -> case f1' of

@@ -2,11 +2,13 @@
 module Landmark where
 
 import Numeric.LinearAlgebra
+import Data.List (foldl')
 import Data.Random (RVar)
 import Data.Random.Normal
 import Data.Random.Distribution.Normal
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
+import Data.Bits (xor, popCount)
 
 import InternalMath
 
@@ -69,8 +71,10 @@ inverse2euclidean (Landmark id' mu cov d') = Landmark id' mu' cov' d' where
 		, 0, 0, 1, (-cos phi) * sin theta / rho, (-sin phi) * cos theta / rho, (-cos phi) * cos theta / (rho*rho)
 		]
 
-hammingDist :: Descriptor -> Descriptor -> Double
-hammingDist = undefined
+-- | The number of different bits between the descriptor.
+-- Or, the number of set bits after a XOR operation.
+hammingDist :: Descriptor -> Descriptor -> Int
+hammingDist d1 d2 = foldl' (\a w -> popCount w + a) 0 (BS.zipWith xor d1 d2)
 
 
 -- | Return a pseudo-random point from the landmark distribution converted to
