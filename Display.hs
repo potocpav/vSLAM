@@ -48,7 +48,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 	let 
 		x' = (fromIntegral x) `div` 2
 		y' = (fromIntegral y) `div` 2
-		run = spacePressed input'
+		run = not $ spacePressed input'
 		
 	meas <- 
 		if run then measurement frame_id else return []
@@ -137,7 +137,7 @@ drawLandmark seed l = Points (map vec2v3 (take 10 $ samples l seed)) (Just 3) (m
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 
 drawMap :: Map -> VisObject Double
-drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 5 || True) $ Set.toList m)
+drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 3) $ Set.toList m)
 	
 -- | TODO: Display number
 drawTrueLandmark :: (LID, V3 Double) -> VisObject Double

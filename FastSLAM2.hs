@@ -16,7 +16,7 @@ import InternalMath
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [0.01, 0.01])
+measurement_cov = diag (2|> [0.005, 0.005])
 
 
 -- | Find a landmark with a specified ID in a map.
@@ -45,20 +45,36 @@ pruneLandmarks ms = S.map fade $ S.filter (\l -> lhealth l > 0) ms where
 
 -- | Attempt to guided-match a feature to a given landmark. The result is saved
 -- into a matching feature $ set element.
-guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> (Double, S.Set Feature)
+guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> RVar (Double, S.Set Feature)
 guidedMatch (lm, g) fs = let
 	f_pos f = (\(a,b) -> 2|> [a,b]) $ fpos f
-	neighbors =  ("neigh " ++ show (lid lm)) ++ show (map dist $ S.toList ff) `debug` ff where
-		ff = S.filter (\f -> dist f < 50 && mahalDist_sq g (f_pos f) < 3*3) fs
-	updated :: Maybe Feature
-	updated = if S.size neighbors == 1 then Just $ (head $ S.elems neighbors) {flm = Just lm} else Nothing
+	
+	neighbors :: S.Set Feature
+	neighbors =  {- ("neigh " ++ show (lid lm)) ++ show (map dist $ S.toList ff) `debug` -} ff where
+		ff = S.filter (\f -> dist f < 40 && mahalDist_sq g (f_pos f) < 3*3) fs
+
+	-- | Chose at (weighted) random from the chosen candidates
+	updated :: RVar (Maybe Feature)
+	updated = return $ if S.size neighbors == 1 then Just $ (head $ S.elems neighbors) {flm = Just lm} else Nothing
+	
+		-- | Chose at (weighted) random from the chosen candidates
+	{-updated :: RVar (Maybe Feature)
+	updated = do
+		let hypotheses = (0.001, Nothing) : map (\f -> (500-fromIntegral (dist f) :: Double, Just f)) (S.toList neighbors)
+		res <- weightedCategorical hypotheses
+		return $ case res of
+			Nothing -> Nothing
+			Just f -> Just $ f {flm = Just lm}
+			-}
 	
 	dist f' = hammingDist (ldescriptor lm) (descriptor f')
 	w f = normalDensity g ((\(a,b) -> 2|> [a,b]) (fpos f))
-	in case updated of
-		Nothing -> (1,fs) 
-		Just up -> (w up, S.insert up fs) where
-
+	in do
+		upd <- updated
+		return $ case upd of
+			Nothing -> (1,fs) 
+			Just up -> (w up, S.insert up fs)
+		
 	
 	
 cameraUpdate :: GaussianCamera -> S.Set Feature -> GaussianCamera
@@ -130,11 +146,12 @@ filterUpdate :: [(ExactCamera, Map)]
 filterUpdate input_state camTransition features = do 
 	let
 		feature_set = S.fromList $ tail features
-		--gaussian_mixture :: [(Double, (GaussianCamera, Map, S.Set Feature)]
-		gaussian_mixture = do -- each particle in isolation (List Monad)
-		  (input_camera, input_map) <- input_state
+		
+	--gaussian_mixture :: [(Double, (GaussianCamera, Map, S.Set Feature)]
+	gaussian_mixture <- sequence $ do -- each particle in isolation (List Monad)
+		(input_camera, input_map) <- input_state
 	
-		  let
+		let
 			gaussian_proposal :: GaussianCamera
 			gaussian_proposal = camTransition input_camera
 		
@@ -145,15 +162,24 @@ filterUpdate input_state camTransition features = do
 			searched_regions :: [(Landmark, Gauss)]
 			searched_regions = map (curry searchRegion $ gaussian_proposal) (S.toList pruned_lms)
 			
-			matched_features :: (Double, S.Set Feature)
+			matched_features :: RVar (Double, S.Set Feature)
 			matched_features = foldl'
-				(\(w,fs) lg -> (\(w',x) -> (w*w',x)) $ guidedMatch lg fs)
-				(1,feature_set) searched_regions
+					(\rv_gm lg -> do
+						(w,fs) <- rv_gm
+						(gm_w, gm_fs) <- guidedMatch lg fs
+						return (w*gm_w, gm_fs)
+						)
+					(return (1,feature_set)) searched_regions
 			
-			updated_camera :: GaussianCamera
-			updated_camera = cameraUpdate gaussian_proposal (snd matched_features)
+			updated_camera :: RVar GaussianCamera
+			updated_camera = do
+				mf <- matched_features
+				return $ cameraUpdate gaussian_proposal (snd mf)
 			
-		  return (fst matched_features, (updated_camera, pruned_lms, snd matched_features))
+		return $ do
+			mfs <- matched_features
+			uc <- updated_camera
+			return $ (fst mfs, (uc, pruned_lms, snd mfs))
 
 	-- resampled_state :: [(ExactCamera, Map, S.Set Feature)]
 	resampled_state <- camerasSample gaussian_mixture
