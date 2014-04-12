@@ -9,13 +9,15 @@ import Data.Random.Distribution.Normal
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
 import Data.Bits (xor, popCount)
+import Data.Serialize
+import Data.Maybe (fromJust)
 
 import InternalMath
 
 -- | Landmark ID, constituting a new type, because Integer arithmetics do not make sense.
-newtype LID = LID Int deriving (Eq, Ord, Show)
+newtype LID = LID {fromLID :: Int} deriving (Eq, Ord, Show)
 -- |  Feature ID, constituting a new type, because Integer arithmetics do not make sense.
-newtype FID = FID Int deriving (Eq, Ord, Show)
+newtype FID = FID {fromFID :: Int} deriving (Eq, Ord, Show)
 
 type Descriptor = BS.ByteString
 
@@ -26,6 +28,7 @@ data Landmark = Landmark
 		, lmu :: Vector Double
 		, lcov :: Matrix Double
 		, ldescriptor :: Descriptor
+		, lhealth :: Double
 		}
 instance Show Landmark where
 	show l = "Landmark " ++ show (lid l) ++ drop 8 (show (lmu l)) ++ "\n" ++ show (lcov l)
@@ -40,17 +43,27 @@ instance Ord Landmark where
 -- according to a globally-unique number fid. If it makes a new landmark, it gets
 -- its ID.
 data Feature = Feature 
-		{ fid :: FID				-- ^frame-unique number, useful for sorting in the Set structure
+		{ fid :: FID				-- ^globally-unique number, useful for sorting in the Set structure, and initializing landmark id
 		, flm :: Maybe Landmark		-- ^if the feature gets associated to a landmark at some point, this is the point to tell the world
 		, fpos :: (Double, Double)	-- ^(theta, phi) pair in radians. (1,0) is positive-z, (0,1) is negative-y in camera coords.
 		, response :: Double		-- ^the bigger, the better corner was detected by Harris.
 		, descriptor :: Descriptor	-- ^Hamming distance is defined between the descriptors pairs.
 		}
-	deriving (Show)
 instance Eq Feature where
 	a == b = fid a == fid b
 instance Ord Feature where
 	compare a b = compare (fid a) (fid b)
+instance Show Feature where
+	show f = 
+			"Feature " ++ show (fromFID $ fid f) ++ ": " 
+			++ (if flm f == Nothing then "N" else "L"++show (fromLID . lid . fromJust $ flm f))
+			++ ", "
+			++ show (toDeg . fst $ fpos f, toDeg . snd $ fpos f) where
+		toDeg x = round $ x * 180 / pi
+		
+instance Serialize Feature where
+	put (Feature (FID i) Nothing pos resp descr) = put (i, pos, resp, descr)
+	get = do (i, pos, resp, descr) <- get; return $ Feature (FID i) Nothing pos resp descr
 	
 type Map = S.Set Landmark
 
@@ -60,8 +73,9 @@ fid2lid (FID i) = LID i
 -- approximation to the 6D landmarks, to save some computing power. But the
 -- 6D parametrization does have the first 3 rows and cols of covariance zero,
 -- so the computing could be saved by instead taking advantage of that fact.
+{-
 inverse2euclidean :: Landmark -> Landmark
-inverse2euclidean (Landmark id' mu cov d') = Landmark id' mu' cov' d' where
+inverse2euclidean (Landmark id' mu cov d' lh') = Landmark id' mu' cov' d' lh' where
 	mu' = toXYZ mu
 	[_,_,_,theta,phi,rho] = toList mu
 	cov' = jacob <> cov <> trans jacob
@@ -70,6 +84,7 @@ inverse2euclidean (Landmark id' mu cov d') = Landmark id' mu' cov' d' where
 		, 0, 1, 0,             (-sin phi) / rho,             (-cos phi) / rho,              (sin phi) / (rho*rho)
 		, 0, 0, 1, (-cos phi) * sin theta / rho, (-sin phi) * cos theta / rho, (-cos phi) * cos theta / (rho*rho)
 		]
+-}
 
 -- | The number of different bits between the descriptor.
 -- Or, the number of set bits after a XOR operation.

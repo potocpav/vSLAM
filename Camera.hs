@@ -2,6 +2,7 @@
 module Camera where
 
 import Numeric.LinearAlgebra
+import Numeric.LinearAlgebra.Util ((&))
 import InternalMath
 
 -- | Camera is parametrised by its position and a rotation matrix.
@@ -41,3 +42,9 @@ euler2rotmat ea = (3><3)
 	[alpha, beta, gamma] = toList ea
 	sa = sin alpha; sb = sin beta; sg = sin gamma;
 	ca = cos alpha; cb = cos beta; cg = cos gamma;
+
+
+averageCams :: [ExactCamera] -> ExactCamera
+averageCams cs = ExactCamera (3|> [x,y,z]) (euler2rotmat (3|> [a,b,g])) where
+	[x,y,z,a,b,g] = toList $ sum [cpos c & rotmat2euler (crot c) | c <- cs] / fromIntegral (length cs)
+

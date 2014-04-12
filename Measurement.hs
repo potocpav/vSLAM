@@ -10,7 +10,7 @@ import Camera
 
 -- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
 initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,0.001,0.001,0.5])
+initialCov = diag(6|> [0,0,0,0.01,0.01,0.5])
 
 -- | TODO: check the correctness of this value (10 or 1/10 or other?)
 initialRho :: Double
@@ -22,10 +22,11 @@ initialRho = 0.2
 -- TODO: assert that feature is not associated with any landmark
 initialize :: ExactCamera -> Feature -> Landmark
 initialize (ExactCamera cpos crot) feature = Landmark
-		undefined 
+		(fid2lid $ fid feature) 
 		(join [cpos, 3 |> [theta, phi, initialRho]])  
 		initialCov 
-		(descriptor feature) where
+		(descriptor feature)
+		1 where
 	h = euler2vec (fpos feature)
 	(theta, phi) = vec2euler . head.toColumns $ crot <> asColumn h
 

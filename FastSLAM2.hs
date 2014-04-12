@@ -16,7 +16,7 @@ import InternalMath
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [0.001, 0.001])
+measurement_cov = diag (2|> [0.01, 0.01])
 
 
 -- | Find a landmark with a specified ID in a map.
@@ -37,9 +37,10 @@ searchRegion (gcam, lm) = (lm, Gauss mu' cov') where
 	cov' = jc <> (ccov gcam) <> trans jc + jl <> (lcov lm) <> trans jl + measurement_cov
 	
 	
--- | Chose all landmarks present
-choseLandmarks :: Map -> [Landmark]
-choseLandmarks ms = S.toList ms
+-- | Delete the landmarks with insufficient health
+pruneLandmarks :: Map -> Map
+pruneLandmarks ms = S.map fade $ S.filter (\l -> lhealth l > 0) ms where
+	fade lm = lm { lhealth = lhealth lm - 1 }
 	
 
 -- | Attempt to guided-match a feature to a given landmark. The result is saved
@@ -47,14 +48,10 @@ choseLandmarks ms = S.toList ms
 guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> (Double, S.Set Feature)
 guidedMatch (lm, g) fs = let
 	f_pos f = (\(a,b) -> 2|> [a,b]) $ fpos f
-	neighbors = S.filter (\f -> mahalDist g (f_pos f) < 3) fs
+	neighbors =  ("neigh " ++ show (lid lm)) ++ show (map dist $ S.toList ff) `debug` ff where
+		ff = S.filter (\f -> dist f < 50 && mahalDist_sq g (f_pos f) < 3*3) fs
 	updated :: Maybe Feature
-	updated = do
-		chosen <- S.foldl' (\f1' f2 -> case f1' of
-			Nothing -> Just f2
-			Just f1 -> Just (if dist f2 < dist f1 then f2 else f1)
-			) Nothing neighbors
-		return $ chosen {flm = Just lm}
+	updated = if S.size neighbors == 1 then Just $ (head $ S.elems neighbors) {flm = Just lm} else Nothing
 	
 	dist f' = hammingDist (ldescriptor lm) (descriptor f')
 	w f = normalDensity g ((\(a,b) -> 2|> [a,b]) (fpos f))
@@ -75,17 +72,17 @@ cameraSample (GaussianCamera mu cov) = do
 	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 
 
-camerasSample :: [(Double, (GaussianCamera, Map))] -> RVar [(ExactCamera, Map)]
+camerasSample :: [(Double, (GaussianCamera, Map, S.Set Feature))] -> RVar [(ExactCamera, Map, S.Set Feature)]
 camerasSample ps = sequence $ replicate (length ps) 
 		(particleSample =<< weightedCategorical ps) where
-	particleSample (c,m) = do
+	particleSample (c,m,f) = do
 		c' <- cameraSample c
-		return (c',m)
+		return (c',m,f)
 
 
 -- | Implemented according to the original FastSLAM 2.0 paper.
 singleFeatureCameraUpdate :: GaussianCamera -> Feature -> GaussianCamera
-singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = case flm feature of
+singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = {- debug "f" feature `seq` -} case flm feature of
 	Nothing -> gcam -- Failed association
 	Just landmark -> let
 		ecam = gauss2exact gcam
@@ -107,7 +104,7 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = case flm 
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
 singleFeatureLandmarkUpdate cam m f = case flm f of 
 	Nothing -> S.insert (initialize cam f) m
-	Just (Landmark id_l mu_l cov_l descr) -> let
+	Just (Landmark id_l mu_l cov_l descr health) -> let
 		_H = jacobian_l cam mu_l
 		_S = _H <> cov_l <> trans _H + measurement_cov
 		_K = cov_l <> trans _H <> inv _S
@@ -119,7 +116,7 @@ singleFeatureLandmarkUpdate cam m f = case flm f of
 		mu' = mu_l + _K <> (2|> [z_theta `cyclicDiff` z_theta', z_phi - z_phi'])
 		cov' = _P
 		
-		in S.insert (Landmark id_l mu' cov' descr) m
+		in S.insert (Landmark id_l mu' cov' (descriptor f) (health+(20-health)/10)) m
 
 
 mapUpdate :: ExactCamera -> Map -> S.Set Feature -> Map
@@ -132,8 +129,8 @@ filterUpdate :: [(ExactCamera, Map)]
              -> RVar [(ExactCamera, Map)]
 filterUpdate input_state camTransition features = do 
 	let
-		feature_set = S.fromList features
-		--gaussian_mixture :: [(Double, (GaussianCamera, Map), [(Maybe LID, Feature)])]
+		feature_set = S.fromList $ tail features
+		--gaussian_mixture :: [(Double, (GaussianCamera, Map, S.Set Feature)]
 		gaussian_mixture = do -- each particle in isolation (List Monad)
 		  (input_camera, input_map) <- input_state
 	
@@ -142,11 +139,11 @@ filterUpdate input_state camTransition features = do
 			gaussian_proposal = camTransition input_camera
 		
 			-- one item in the top-level list for one particle
-			searched_lms :: [Landmark]
-			searched_lms = choseLandmarks input_map
+			pruned_lms :: S.Set Landmark
+			pruned_lms = pruneLandmarks input_map
 		
 			searched_regions :: [(Landmark, Gauss)]
-			searched_regions = map (curry searchRegion $ gaussian_proposal) searched_lms
+			searched_regions = map (curry searchRegion $ gaussian_proposal) (S.toList pruned_lms)
 			
 			matched_features :: (Double, S.Set Feature)
 			matched_features = foldl'
@@ -156,14 +153,14 @@ filterUpdate input_state camTransition features = do
 			updated_camera :: GaussianCamera
 			updated_camera = cameraUpdate gaussian_proposal (snd matched_features)
 			
-		  return $ (fst matched_features, (updated_camera, input_map))
+		  return (fst matched_features, (updated_camera, pruned_lms, snd matched_features))
 
-	-- resampled_state :: [(ExactCamera, Map)]
+	-- resampled_state :: [(ExactCamera, Map, S.Set Feature)]
 	resampled_state <- camerasSample gaussian_mixture
 	
 	let 
 		new_maps :: [Map]
-		new_maps = map (\(c,m) -> mapUpdate c m feature_set) resampled_state
+		new_maps = map (\(c,m,f) -> mapUpdate c m f) resampled_state
 		
-	return $ zip (map fst resampled_state) new_maps
+	return $ zip (map (\(ec,_,_) -> ec) resampled_state) new_maps
 
