@@ -14,14 +14,18 @@ import InternalMath
 
 measurement :: Int -> IO [Feature]
 measurement i = do
-	bs <- BS.readFile (printf "../data/yard4/features_%04d.data" i)
+	bs <- BS.readFile (printf "../data/squares/features_%04d.data" i)
 	return $ case decode bs of 
 		Left err -> []
-		Right val -> map (\v -> v { fpos = (\(theta, phi) -> (theta, -phi)) $ fpos v }) val
+		Right val -> map (\v -> v { fpos = (\(theta, phi) -> (deformt theta, deformp (-phi))) $ fpos v }) val where
+			deformt theta = theta -- debug "theta" ((theta + pi)*0.999-pi) -- if theta < 0 then theta else theta + 1/500*2*pi
+			deformp phi = phi -- debug "phi" phi
 
 camTransition :: ExactCamera -> GaussianCamera
 camTransition (ExactCamera ccp ccr) = 
-	GaussianCamera (ccp & rotmat2euler ccr) ((posCov ! empty33) # (empty33 ! (diag $ 3|> [0.03,0.03,0.03])))
+	GaussianCamera (6|> [x',y',z',a',0,0]) ((posCov ! empty33) # (empty33 ! (diag $ 3|> [0.3,0.03,0.03])))
 	where 
-		posCov =  ccr <> (diag $ 3|> [0.02, 0.000003, 0.1]) <> trans ccr
+		[x',y',z'] = toList ccp
+		[a',b',g'] = toList $ rotmat2euler ccr
+		posCov = ccr <> (diag $ 3|> [0.01,0.01, 0.01]) <> trans ccr
 		empty33 = zeros 3 3

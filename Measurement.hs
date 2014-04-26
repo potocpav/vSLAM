@@ -10,7 +10,7 @@ import Camera
 
 -- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
 initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,0.005,0.005,0.5])
+initialCov = diag(6|> [0,0,0,0.05,0.05,0.5])
 
 -- | TODO: check the correctness of this value (10 or 1/10 or other?)
 initialRho :: Double

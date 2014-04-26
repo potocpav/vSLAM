@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 import Control.Monad ( when )
 import Data.Random hiding (sample)
 import Data.Random.Source.DevRandom
+import Data.List (sort)
 import Numeric.LinearAlgebra
 
 import InternalMath
@@ -59,6 +60,8 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 				camTransition
 				meas
 	
+	if run then printBestLandmarks (snd $ head ps') frame_id else return ()
+	
 	let chists' = if run then (map fst ps') : chists else chists
 	let chist' = if run then (averageCams $ map fst ps') : chist else chist
 	let frame_id' = frame_id + if run then 1 else 0
@@ -92,6 +95,12 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 					up = if keyPressed 'p' then 3 else 0
 					dn = if keyPressed 't' then 3 else 0
 
+printBestLandmarks :: Map -> Int -> IO ()
+printBestLandmarks m frame_id = 
+	putStrLn . show . map get_age . take 20 . sort $ Set.toList m
+	where get_age lm = frame_id - (floor $ fromIntegral (fromLID $ lid lm) / 1000)
+	
+
 keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
 keyMouseCallback state0 key keystate _ _
 	| keystate == Down = state0 {input = (input state0) {keySet = Set.insert key (keySet $ input state0), 
@@ -118,8 +127,8 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
     
 
 drawfun :: GameState -> VisObject Double
-drawfun (GameState (Running _ _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
-	[drawBackground]
+drawfun (GameState (Running observer _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
+	[drawBackground observer]
 	++ [drawMap . snd $ head ps]
 	++ [drawCamTrajectory 0.1 chist]
 	++ (if length chists > 0 then map (drawCamTrajectory 0.05 . return) (head chists) else [])
@@ -128,8 +137,9 @@ drawfun (GameState (Running _ _ _) _ (SLAM frame_id chist chists ps)) = VisObjec
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
    
-drawBackground :: VisObject Double
-drawBackground = VisObjects [Axes (1, 25), Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1)]
+drawBackground :: V3 Double -> VisObject Double
+drawBackground (V3 x _ z) = VisObjects [Axes (1, 25), Trans (V3 x' 0 z') $ Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1)]
+	where (x',z') = (2*(fromIntegral $ round (x/2)), 2*(fromIntegral $ round (z/2)))
 
 -- | Takes the seed as an argument.
 drawLandmark :: Int -> Landmark -> VisObject Double
@@ -161,7 +171,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 100 [] [] (replicate 20 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 100 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
