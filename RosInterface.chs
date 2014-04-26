@@ -13,8 +13,6 @@ import Data.Serialize
 -- import Foreign.Marshal.Array
 
 import Landmark
- 
-#include "../main.h" 
 
 {#pointer *keypoint_t as KeypointPtr#}
 
