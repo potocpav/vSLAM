@@ -14,7 +14,6 @@ import Data.Random.Source.DevRandom
 import Data.List (sort)
 import Numeric.LinearAlgebra
 
-import InternalMath
 import Landmark
 import Camera
 import Playback --import Simulate
