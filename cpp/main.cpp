@@ -77,7 +77,7 @@ public:
 		// Create some features
 		std::vector<KeyPoint> left_keypoints, right_keypoints;
 		Mat left_descriptors, right_descriptors;
-		Rect left_half(0,0,799,799); Rect right_half(799,0,799,799);
+		Rect left_half(0,0,800,800); Rect right_half(800,0,800,800);
 		Mat left_half_im = cv_ptr->image(left_half);
 		Mat right_half_im = cv_ptr->image(right_half);
 		ORB *left_orb = new ORB (500);

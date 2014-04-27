@@ -1,11 +1,11 @@
 
 #include "keypoints.h"
 
-static int px_to_rad_horizontal(int x, int width) {
+static double px_to_rad_horizontal(double x, int width) {
 	return (x / (width-1) - 0.5) * 2*PI;
 }
 
-static int px_to_rad_vertical(int y, int height) {
+static double px_to_rad_vertical(double y, int height) {
 	return (y / (height-1) - 0.5) * PI;
 }
 
