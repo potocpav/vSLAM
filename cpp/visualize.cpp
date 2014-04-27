@@ -5,11 +5,11 @@
 #include <sstream>
 #include <stdio.h>
 
-#include "draw-keypoints.h"
+#include "visualize.h"
 
 using namespace cv;
 
-void draw_keypoints(Mat big_image, Keypoint *fs, int n, int frame_id) 
+void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id) 
 {
 	Mat image; // = big_image;
 	resize(big_image, image, Size(1366,683), 0, 0);

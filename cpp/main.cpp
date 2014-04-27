@@ -12,16 +12,17 @@
 #include <unistd.h> // execl
 #include <signal.h> // kill, SIGTERM
 // #include <stdio.h>
-#include <wordexp.h> // for the single-string form of Main I am using to make the ffi from Haskell simpler
+#include <wordexp.h> // strtok (fused args splitting)
 
 #include "main.h"
 #include "non-maxima-suppression.h"
-#include "draw-keypoints.h"
+#include "visualize.h"
+#include "keypoints.h"
 
 using namespace cv;
 using namespace std;
 
-Keypoint *keypoints_to_structs(std::vector<KeyPoint> keypoints, Mat descriptors, int w, int h);
+//Keypoint *keypoints_to_structs(std::vector<KeyPoint> keypoints, Mat descriptors, int w, int h);
 
 pthread_mutex_t features_mutex;
 pthread_cond_t cond_consumer, cond_producer;
@@ -98,11 +99,7 @@ public:
 		// save features to the global structure
 		pthread_mutex_lock(&features_mutex);	// protect buffer
 		// free the memory
-		if (features) {
-			for (int i = 0; i < nfeatures; i++)
-				free(features[i].descriptor);
-			free(features);
-		}
+		free_keypoints(nfeatures, features);
 		
 		nfeatures = descriptors.rows;
 		features = keypoints_to_structs(keypoints, descriptors, cv_ptr->image.cols, cv_ptr->image.rows);
@@ -116,7 +113,7 @@ public:
 		
 		ROS_INFO("NMS finished!");
 		
-		draw_keypoints(cv_ptr->image, features, nfeatures, frame_id);
+		draw_image(cv_ptr->image, features, nfeatures, frame_id);
 		
 		ROS_INFO("Drawn an image.");
 		
@@ -131,28 +128,6 @@ public:
 	}
 };
 
-Keypoint *keypoints_to_structs(std::vector<KeyPoint> keypoints, Mat descriptors, int w, int h)
-{
-	Keypoint *kps = (Keypoint *)malloc(keypoints.size() * sizeof(Keypoint));
-
-	for(std::vector<KeyPoint>::size_type i = 0; i != keypoints.size(); i++) {
-		char *descriptor = (char *)malloc(descriptors.cols);
-		memcpy(descriptor, descriptors.row(i).data, descriptors.cols);
-		
-		Keypoint *kp = kps+i;
-		kp->id =        -1; // no point in defining this before the non-maxima suppression routine.
-		kp->px =        (keypoints[i].pt.x / (w-1) - 0.5) * 2*PI;
-		kp->py =        (keypoints[i].pt.y / (h-1) - 0.5) * PI;
-		kp->octave =    keypoints[i].octave;
-		kp->response =  keypoints[i].response;
-		kp->descriptor_size = descriptors.cols;
-		//kp.size =     keypoints[i].size;
-		//kp.angle =    keypoints[i].angle;
-		kp->descriptor = descriptor;
-	}
-	return kps;
-}
-
 // *features consumer
 // waits for the next image if it was called too quickly; takes the current 
 // image, if called too late.
@@ -164,14 +139,11 @@ Keypoint *extract_keypoints(int *length)
 	// save features to the global structure
 	pthread_mutex_lock(&features_mutex);	// protect buffer
 	
-	printf("going to lock...\n");
+	printf("waiting for the producer of keypoints to produce something...\n");
 	pthread_cond_wait(&cond_consumer, &features_mutex);
 
-	if (persistent_features) {
-		for (int i = 0; i < npersistent_features; i++)
-			free(persistent_features[i].descriptor);
-		free(persistent_features);
-	}
+	free_keypoints(npersistent_features, persistent_features);
+	
 	persistent_features = (Keypoint *)malloc(sizeof(Keypoint)*nfeatures);
 	memcpy(persistent_features, features, sizeof(Keypoint)*nfeatures);
 	for (int i = 0; i < nfeatures; i++) {
@@ -180,9 +152,9 @@ Keypoint *extract_keypoints(int *length)
 		persistent_features[i].descriptor = descriptor;
 	}
 	npersistent_features = nfeatures;
+	
 	pthread_mutex_unlock(&features_mutex);	// release the buffer
 	
-	ROS_INFO("disposed the features.");
 	*length = nfeatures;
 	return persistent_features;
 }
@@ -190,7 +162,7 @@ Keypoint *extract_keypoints(int *length)
 int argc = 0;
 char **argv;
 
-void *ros_init (void *arg)
+static void *ros_init (void *arg)
 {
 	// ROS loop init
 	ros::init(argc, argv, "fastSLAM_2");
