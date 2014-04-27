@@ -3,6 +3,12 @@
  * 1] C-visible bindings for the shared library are defined here
  * 2] It defines some function prototypes 
  */
+
+#ifndef __MAIN_H__
+#define __MAIN_H__
+ 
+#define PI 3.141592653589793
+ 
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,3 +38,4 @@ extern "C" {
 }
 #endif
 
+#endif // __MAIN_H__
