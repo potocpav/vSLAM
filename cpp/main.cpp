@@ -41,6 +41,36 @@ class RosMain
 	//image_transport::Publisher image_pub_;
 	cv::Mat mask;
 	
+	// uses the 'mask' private class variable
+	// TODO: make the cells overlapping, so that no eligible features
+	// are missed on the boundaries
+	void detect_keypoints(Mat image, vector<KeyPoint> *keypoints, Mat *descriptors, int *count)
+	{
+		int h_cells = 2, v_cells = 1;
+		int w = image.cols, h=image.rows;
+		ORB *orb = new ORB(500);
+		printf("------------------------------\n");
+		for (int j = 0; j < v_cells; j++) {
+			for (int i = 0; i < h_cells; i++) {
+				std::vector<KeyPoint> cell_keypoints;
+				Mat cell_descriptors;
+				int x = w/h_cells*i, y = h/v_cells*j;
+				
+				Rect cell(x, y, w/h_cells, h/v_cells);
+				(*orb)(image(cell), mask(cell), cell_keypoints, cell_descriptors);
+				
+				for (int k = 0; k < cell_keypoints.size(); k++) {
+					cell_keypoints[k].pt.x += x;
+					cell_keypoints[k].pt.y += y;
+				}
+				
+				descriptors->push_back(cell_descriptors);
+				keypoints->insert(keypoints->end(), cell_keypoints.begin(), cell_keypoints.end());
+			}
+		}
+		*count = descriptors->rows;
+	}
+	
 public:
 	RosMain() : it_(nh_)
 	{
@@ -74,59 +104,39 @@ public:
 			return;
 		}
 
-		// Create some features
-		std::vector<KeyPoint> left_keypoints, right_keypoints;
-		Mat left_descriptors, right_descriptors;
-		Rect left_half(0,0,800,800); Rect right_half(800,0,800,800);
-		Mat left_half_im = cv_ptr->image(left_half);
-		Mat right_half_im = cv_ptr->image(right_half);
-		ORB *left_orb = new ORB (500);
-		(*left_orb)(left_half_im, mask(left_half), left_keypoints, left_descriptors );
-		ORB *right_orb = new ORB (500);
-		(*right_orb)(right_half_im, mask(right_half), right_keypoints, right_descriptors );
-		Mat descriptors; 
-		descriptors.push_back(left_descriptors);
-		descriptors.push_back(right_descriptors);
-		std::vector<KeyPoint> keypoints;
-		keypoints.insert(keypoints.begin(), left_keypoints.begin(), left_keypoints.end());
-		for (int i = 0; i < right_keypoints.size(); i++) {         
-		  right_keypoints[i].pt.x += 800;         
-		} 
-		keypoints.insert(keypoints.end(), right_keypoints.begin(), right_keypoints.end());
-
-		ROS_INFO("Computed ORB features");
-		
-		// save features to the global structure
 		pthread_mutex_lock(&features_mutex);	// protect buffer
-		// free the memory
-		free_keypoints(nfeatures, features);
-		
-		nfeatures = descriptors.rows;
-		features = keypoints_to_structs(keypoints, descriptors, cv_ptr->image.cols, cv_ptr->image.rows);
+		{
+			free_keypoints(nfeatures, features);
 
-		non_maxima_suppression(&features, &nfeatures, frame_id);
+			ROS_INFO("Computing ORB features...");
 
-		printf("nfeatures: %d\n", nfeatures);
-		
-		pthread_cond_signal(&cond_consumer);
+			// Create some features
+			vector<KeyPoint> keypoints;
+			Mat descriptors;
+			detect_keypoints(cv_ptr->image, &keypoints, &descriptors, &nfeatures);
+			
+			features = keypoints_to_structs(keypoints, descriptors, cv_ptr->image.cols, cv_ptr->image.rows);
+
+			ROS_INFO("Non-maxima suppression...");
+	
+			non_maxima_suppression(&features, &nfeatures, frame_id);
+
+			printf("nfeatures: %d\n", nfeatures);
+			
+			// Produced another value successfully!
+			pthread_cond_signal(&cond_consumer);
+		}
 		pthread_mutex_unlock(&features_mutex);	// release the buffer
 		
-		ROS_INFO("NMS finished!");
+		ROS_INFO("Drawing the output image...");
 		
 		draw_image(cv_ptr->image, features, nfeatures, frame_id);
-		
-		ROS_INFO("Drawn an image.");
-		
 		cv::waitKey(3);
-		ROS_INFO("Waited for cw key.");
-		
+
 		frame_id++;
-		
-		// Output modified video stream
-		// ... OR NOT, mwehehehe!
-		//image_pub_.publish(cv_ptr->toImageMsg());
 	}
 };
+
 
 // *features consumer
 // waits for the next image if it was called too quickly; takes the current 
