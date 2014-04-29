@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 	int test(int x);
-	struct Keypoint *extract_keypoints(int *length);
+	struct Frame *extract_keypoints();
 	int main_c(char *args);
 	typedef struct Keypoint {
 		int id;
@@ -30,8 +30,9 @@ extern "C" {
 	typedef struct Frame {
 		int id;
 		int num_kps;
+		double dt;
 		keypoint_t *kps;
-	};
+	} frame_t;
 	
 
 #ifdef __cplusplus

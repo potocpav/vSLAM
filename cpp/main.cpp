@@ -167,32 +167,36 @@ public:
 // *features consumer
 // waits for the next image if it was called too quickly; takes the current 
 // image, if called too late.
-Keypoint *extract_keypoints(int *length)
+Frame *extract_keypoints()
 {	
 	if (killed) {
 		printf("extract_keypoints detected the ROS thread was killed.\n");
 	}
 	// save features to the global structure
 	pthread_mutex_lock(&features_mutex);	// protect buffer
-	
-	printf("waiting for the producer of keypoints to produce something...\n");
-	pthread_cond_wait(&cond_consumer, &features_mutex);
+	{
+		printf("waiting for the producer of keypoints to produce something...\n");
+		pthread_cond_wait(&cond_consumer, &features_mutex);
 
-	free_keypoints(npersistent_features, persistent_features);
-	
-	persistent_features = (Keypoint *)malloc(sizeof(Keypoint)*nfeatures);
-	memcpy(persistent_features, features, sizeof(Keypoint)*nfeatures);
-	for (int i = 0; i < nfeatures; i++) {
-		char *descriptor = (char *)malloc(features[i].descriptor_size);
-		memcpy(descriptor, features[i].descriptor, features[i].descriptor_size);
-		persistent_features[i].descriptor = descriptor;
+		free_keypoints(npersistent_features, persistent_features);
+		
+		persistent_features = (Keypoint *)malloc(sizeof(Keypoint)*nfeatures);
+		memcpy(persistent_features, features, sizeof(Keypoint)*nfeatures);
+		for (int i = 0; i < nfeatures; i++) {
+			char *descriptor = (char *)malloc(features[i].descriptor_size);
+			memcpy(descriptor, features[i].descriptor, features[i].descriptor_size);
+			persistent_features[i].descriptor = descriptor;
+		}
+		npersistent_features = nfeatures;
 	}
-	npersistent_features = nfeatures;
-	
 	pthread_mutex_unlock(&features_mutex);	// release the buffer
 	
-	*length = nfeatures;
-	return persistent_features;
+	static Frame *ret = (Frame*)malloc(sizeof(Frame));
+	ret->id = -1; // TODO: define
+	ret->dt = 1; // TODO: sanely define
+	ret->num_kps = nfeatures;
+	ret->kps = persistent_features;
+	return ret;
 }
 
 int argc = 0;
