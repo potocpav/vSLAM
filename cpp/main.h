@@ -3,12 +3,18 @@
  * 1] C-visible bindings for the shared library are defined here
  * 2] It defines some function prototypes 
  */
+
+#ifndef __MAIN_H__
+#define __MAIN_H__
+ 
+#define PI 3.141592653589793
+ 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 	int test(int x);
-	struct Keypoint *extract_keypoints(int *length);
+	struct Frame *extract_keypoints();
 	int main_c(char *args);
 	typedef struct Keypoint {
 		int id;
@@ -24,11 +30,13 @@ extern "C" {
 	typedef struct Frame {
 		int id;
 		int num_kps;
+		double dt;
 		keypoint_t *kps;
-	};
+	} frame_t;
 	
 
 #ifdef __cplusplus
 }
 #endif
 
+#endif // __MAIN_H__
