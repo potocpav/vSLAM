@@ -3,6 +3,7 @@
 
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
+#include <tf/transform_listener.h>
 #include <cv_bridge/cv_bridge.h>
 
 #include <opencv2/highgui/highgui.hpp>
@@ -22,8 +23,6 @@
 using namespace cv;
 using namespace std;
 
-//Keypoint *keypoints_to_structs(std::vector<KeyPoint> keypoints, Mat descriptors, int w, int h);
-
 pthread_mutex_t features_mutex;
 pthread_cond_t cond_consumer, cond_producer;
 Keypoint *features;
@@ -35,33 +34,41 @@ int killed = 0;
 
 class RosMain
 {
+	/// Private variables
 	ros::NodeHandle nh_;
 	image_transport::ImageTransport it_;
 	image_transport::Subscriber image_sub_;
 	//image_transport::Publisher image_pub_;
 	cv::Mat mask;
+	tf::TransformListener tf_listener;
 	
+	FILE *log;
+	
+	/// Detect the keypoints in an image.
+	// This routine (optionally) splits the image processing into cells.
+	// If it is not done this way, only features from one direction
+	// may be generated.
 	// uses the 'mask' private class variable
-	// TODO: make the cells overlapping, so that no eligible features
-	// are missed on the boundaries
 	void detect_keypoints(Mat image, vector<KeyPoint> *keypoints, Mat *descriptors, int *count)
 	{
-		int h_cells = 2, v_cells = 1;
+		int h_cells = 3, v_cells = 1;
 		int w = image.cols, h=image.rows;
-		ORB *orb = new ORB(500);
-		printf("------------------------------\n");
+		int margin = 31;
+		ORB *orb = new ORB(1000 / h_cells / v_cells);
 		for (int j = 0; j < v_cells; j++) {
 			for (int i = 0; i < h_cells; i++) {
 				std::vector<KeyPoint> cell_keypoints;
 				Mat cell_descriptors;
 				int x = w/h_cells*i, y = h/v_cells*j;
+				int lmargin = min(margin,x), tmargin = min(margin,y);
+				int rmargin = min(margin, w-x-w/h_cells), bmargin = min(margin, h-y-h/v_cells);
 				
-				Rect cell(x, y, w/h_cells, h/v_cells);
+				Rect cell(x - lmargin, y - tmargin, w/h_cells + lmargin + rmargin, h/v_cells + tmargin + bmargin);
 				(*orb)(image(cell), mask(cell), cell_keypoints, cell_descriptors);
 				
 				for (int k = 0; k < cell_keypoints.size(); k++) {
-					cell_keypoints[k].pt.x += x;
-					cell_keypoints[k].pt.y += y;
+					cell_keypoints[k].pt.x += x-lmargin;
+					cell_keypoints[k].pt.y += y-tmargin;
 				}
 				
 				descriptors->push_back(cell_descriptors);
@@ -75,22 +82,25 @@ public:
 	RosMain() : it_(nh_)
 	{
 		// Subscrive to input video feed and publish output video feed
-		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, 
-			&RosMain::imageCb, this);
+		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, &RosMain::imageCb, this);
 		//image_pub_ = it_.advertise("/image_converter/output_video", 1);
+		
 
 		cv::Mat mask0 = cv::imread("../res/panomask4.png"); // TODO: garbage collection?
 		cv::cvtColor(mask0, mask, CV_RGB2GRAY);
 
 		cv::namedWindow("Keypoints");
+		
+		//log = fopen("/home/pavel/log.txt", "w");
 	}
 
 	~RosMain()
 	{
 		cv::destroyWindow("Keypoints");
+		//fclose(log);
 	}
 
-	// *features producer
+	// features producer
 	void imageCb(const sensor_msgs::ImageConstPtr& msg)
 	{
 		ROS_INFO("Acquired an image.");
@@ -103,6 +113,22 @@ public:
 			ROS_ERROR("cv_bridge exception: %s", e.what());
 			return;
 		}
+		
+		// Relative transformation is acquired here.
+		/*
+		static ros::Time last_t = cv_ptr->header.stamp;
+		ros::Time now_t = cv_ptr->header.stamp;
+		
+		tf::StampedTransform transform;
+		try {
+			cout << "time interval: [" << last_t << ", " << now_t << "]\n";
+			tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
+			fprintf(log, "tf: [%f, %f, %f]\n", transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
+		} catch (tf::TransformException ex){
+			ROS_ERROR("TF error: %s",ex.what());
+		}
+		last_t = now_t;
+		*/
 
 		pthread_mutex_lock(&features_mutex);	// protect buffer
 		{
