@@ -20,7 +20,7 @@ loop i = do
 	(dt,kps) <- getFrame
 	
 	putStrLn "Saving the data..."
-	BS.writeFile (printf "/home/pavel/Documents/test/features_%04d.data" i) (encode kps) 
+	BS.writeFile (printf "/home/pavel/Documents/test/features_%04d.data" i) (encode (dt, kps)) 
 	
 	--sequence . map (putStrLn . show) $ kps
 	if i > 0 then print dt else return ()
