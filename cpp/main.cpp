@@ -23,12 +23,10 @@
 using namespace cv;
 using namespace std;
 
-pthread_mutex_t features_mutex;
+pthread_mutex_t frame_mutex;
 pthread_cond_t cond_consumer, cond_producer;
-Keypoint *features;
-int nfeatures;
-Keypoint *persistent_features;
-int npersistent_features;
+
+Frame *frame, *persistent_frame;
 
 int killed = 0;
 
@@ -114,11 +112,11 @@ public:
 			return;
 		}
 		
-		// Relative transformation is acquired here.
-		/*
 		static ros::Time last_t = cv_ptr->header.stamp;
 		ros::Time now_t = cv_ptr->header.stamp;
 		
+		// Relative transformation from robot kinematics is acquired here.
+		/*
 		tf::StampedTransform transform;
 		try {
 			cout << "time interval: [" << last_t << ", " << now_t << "]\n";
@@ -127,39 +125,42 @@ public:
 		} catch (tf::TransformException ex){
 			ROS_ERROR("TF error: %s",ex.what());
 		}
-		last_t = now_t;
+		
 		*/
 
-		pthread_mutex_lock(&features_mutex);	// protect buffer
+		pthread_mutex_lock(&frame_mutex);	// protect buffer
 		{
-			free_keypoints(nfeatures, features);
+			free_keypoints(frame->num_kps, frame->kps);
 
 			ROS_INFO("Computing ORB features...");
 
 			// Create some features
 			vector<KeyPoint> keypoints;
 			Mat descriptors;
-			detect_keypoints(cv_ptr->image, &keypoints, &descriptors, &nfeatures);
+			detect_keypoints(cv_ptr->image, &keypoints, &descriptors, &(frame->num_kps));
 			
-			features = keypoints_to_structs(keypoints, descriptors, cv_ptr->image.cols, cv_ptr->image.rows);
+			frame->id = frame_id;
+			frame->dt = (now_t - last_t).toSec();
+			frame->kps = keypoints_to_structs(keypoints, descriptors, cv_ptr->image.cols, cv_ptr->image.rows);
 
 			ROS_INFO("Non-maxima suppression...");
 	
-			non_maxima_suppression(&features, &nfeatures, frame_id);
+			non_maxima_suppression(&(frame->kps), &(frame->num_kps), frame_id);
 
-			printf("nfeatures: %d\n", nfeatures);
+			printf("nfeatures: %d\n", frame->num_kps);
 			
 			// Produced another value successfully!
 			pthread_cond_signal(&cond_consumer);
 		}
-		pthread_mutex_unlock(&features_mutex);	// release the buffer
+		pthread_mutex_unlock(&frame_mutex);	// release the buffer
 		
 		ROS_INFO("Drawing the output image...");
 		
-		draw_image(cv_ptr->image, features, nfeatures, frame_id);
+		draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id);
 		cv::waitKey(3);
 
 		frame_id++;
+		last_t = now_t;
 	}
 };
 
@@ -172,30 +173,35 @@ Frame *extract_keypoints()
 	if (killed) {
 		printf("extract_keypoints detected the ROS thread was killed.\n");
 	}
+	
+	Frame *ret = (Frame *)malloc(sizeof(Frame));
 	// save features to the global structure
-	pthread_mutex_lock(&features_mutex);	// protect buffer
+	pthread_mutex_lock(&frame_mutex);	// protect buffer
 	{
 		printf("waiting for the producer of keypoints to produce something...\n");
-		pthread_cond_wait(&cond_consumer, &features_mutex);
-
-		free_keypoints(npersistent_features, persistent_features);
+		pthread_cond_wait(&cond_consumer, &frame_mutex);
 		
-		persistent_features = (Keypoint *)malloc(sizeof(Keypoint)*nfeatures);
-		memcpy(persistent_features, features, sizeof(Keypoint)*nfeatures);
+		Keypoint *features = frame->kps;
+		int nfeatures = frame->num_kps;
+
+		if (persistent_frame) {
+			free_keypoints(persistent_frame->num_kps, persistent_frame->kps);
+			free(persistent_frame);
+		}
+		
+		memcpy(ret, frame, sizeof(Frame));
+		ret->kps = (Keypoint *)malloc(sizeof(Keypoint)*nfeatures);
+		memcpy(ret->kps, features, sizeof(Keypoint)*nfeatures);
 		for (int i = 0; i < nfeatures; i++) {
 			char *descriptor = (char *)malloc(features[i].descriptor_size);
 			memcpy(descriptor, features[i].descriptor, features[i].descriptor_size);
-			persistent_features[i].descriptor = descriptor;
+			ret->kps[i].descriptor = descriptor;
 		}
-		npersistent_features = nfeatures;
+		ret->num_kps = nfeatures;
+		persistent_frame = ret;
 	}
-	pthread_mutex_unlock(&features_mutex);	// release the buffer
+	pthread_mutex_unlock(&frame_mutex);	// release the buffer
 	
-	static Frame *ret = (Frame*)malloc(sizeof(Frame));
-	ret->id = -1; // TODO: define
-	ret->dt = 1; // TODO: sanely define
-	ret->num_kps = nfeatures;
-	ret->kps = persistent_features;
 	return ret;
 }
 
@@ -203,7 +209,7 @@ int argc = 0;
 char **argv;
 
 static void *ros_init (void *arg)
-{
+{		
 	// ROS loop init
 	ros::init(argc, argv, "fastSLAM_2");
 	RosMain ic;
@@ -216,6 +222,7 @@ static void *ros_init (void *arg)
 }
 
 int main_c(char *args) {
+	frame = (Frame *)malloc(sizeof(Frame));
 	// Arguments parsing
 	char *delimiter = ";";
 	argv = (char **)malloc((strlen(args)/2 + 1) * sizeof(char*));

@@ -23,6 +23,6 @@ loop i = do
 	BS.writeFile (printf "/home/pavel/Documents/test/features_%04d.data" i) (encode kps) 
 	
 	--sequence . map (putStrLn . show) $ kps
-	--if i > 0 then print dt else return ()
+	if i > 0 then print dt else return ()
 	--BS.appendFile "../kps.dump" (encode kps)
 	loop (i+1)
