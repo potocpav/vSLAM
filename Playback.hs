@@ -12,20 +12,21 @@ import Landmark
 import Camera
 import InternalMath
 
-measurement :: Int -> IO [Feature]
+measurement :: Int -> IO (Double, [Feature])
 measurement i = do
-	bs <- BS.readFile (printf "../data/squares/features_%04d.data" i)
+	bs <- BS.readFile (printf "../data/yard1-3/features_%04d.data" i)
 	return $ case decode bs of 
-		Left err -> []
-		Right val -> map (\v -> v { fpos = (\(theta, phi) -> (deformt theta, deformp (-phi))) $ fpos v }) val where
-			deformt theta = theta -- debug "theta" ((theta + pi)*0.999-pi) -- if theta < 0 then theta else theta + 1/500*2*pi
-			deformp phi = phi -- debug "phi" phi
+		Left err -> undefined
+		Right (dt, val) -> (dt, map (\v -> v { fpos = (\(theta, phi) -> (theta, -phi)) $ fpos v }) val)
 
-camTransition :: ExactCamera -> GaussianCamera
-camTransition (ExactCamera ccp ccr) = 
-	GaussianCamera (6|> [x',y',z',a',0,0]) ((posCov ! empty33) # (empty33 ! (diag $ 3|> [0.3,0.03,0.03])))
+
+-- Take the dt and the last camera position, return the next camera position estimate
+camTransition :: Double -> ExactCamera -> GaussianCamera
+camTransition dt (ExactCamera ccp ccr) = 
+	GaussianCamera (6|> [x',y',z',a',0,0]) ((posCov ! empty33) # (empty33 ! rotCov))
 	where 
 		[x',y',z'] = toList ccp
 		[a',b',g'] = toList $ rotmat2euler ccr
-		posCov = ccr <> (diag $ 3|> [0.01,0.01, 0.01]) <> trans ccr
+		posCov = ccr <> (diag $ scale dt $ 3|> [0.3, 0.3, 0.3]) <> trans ccr
+		rotCov = diag $ scale dt $ 3|> [0.3, 0.03, 0.03]
 		empty33 = zeros 3 3

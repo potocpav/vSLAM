@@ -50,13 +50,13 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 		y' = (fromIntegral y) `div` 2
 		run = id $ spacePressed input'
 		
-	meas <- 
-		if run then measurement frame_id else return []
+	(dt,meas) <- if run then measurement frame_id else return (undefined, [])
+	if run then putStrLn $ "dt for frame " ++ show frame_id ++ ": " ++ show dt else return ()
 	-- | Run the FastSLAM routine
 	ps' <- if not run then return ps else
 		(flip runRVar) DevURandom $ filterUpdate
 				ps
-				camTransition
+				(camTransition dt)
 				meas
 	
 	if run then printBestLandmarks (snd $ head ps') frame_id else return ()
@@ -170,7 +170,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 100 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 150 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
