@@ -28,6 +28,7 @@ pthread_mutex_t frame_mutex;
 pthread_cond_t cond_consumer, cond_producer;
 
 Frame *frame, *persistent_frame;
+ros::Time last_consumed_time, last_produced_time;
 
 int killed = 0;
 
@@ -112,12 +113,12 @@ public:
 			ROS_ERROR("cv_bridge exception: %s", e.what());
 			return;
 		}
-			
-		static ros::Time last_t = cv_ptr->header.stamp;
-		ros::Time now_t = cv_ptr->header.stamp;
 		
 		pthread_mutex_lock(&frame_mutex);	// protect buffer
 		{
+			last_produced_time = cv_ptr->header.stamp;
+			ros::Time now_t = cv_ptr->header.stamp;
+			ros::Time last_t = persistent_frame ? last_consumed_time : now_t;
 		
 			// Relative transformation from robot kinematics is acquired here.
 			double *mat = frame->tf;
@@ -167,7 +168,6 @@ public:
 		cv::waitKey(3);
 
 		frame_id++;
-		last_t = now_t;
 	}
 };
 
@@ -206,6 +206,7 @@ Frame *extract_keypoints()
 		}
 		ret->num_kps = nfeatures;
 		persistent_frame = ret;
+		last_consumed_time = last_produced_time;
 	}
 	pthread_mutex_unlock(&frame_mutex);	// release the buffer
 	
