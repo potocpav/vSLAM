@@ -112,31 +112,31 @@ public:
 			ROS_ERROR("cv_bridge exception: %s", e.what());
 			return;
 		}
-		
+			
 		static ros::Time last_t = cv_ptr->header.stamp;
 		ros::Time now_t = cv_ptr->header.stamp;
 		
-		// Relative transformation from robot kinematics is acquired here.
-		tf::StampedTransform transform;
-		try {
-			cout << "time interval: [" << last_t << ", " << now_t << "]\n";
-			// This line is by Vladimir Kubelka, blame him! :D
-			tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
-			double *mat = (double*)malloc(sizeof(double) * 16);
-			transform.getOpenGLMatrix(mat);
-			to_my_coords(mat);
-			fprintf(log, "[[%f, %f, %f, %f],", mat[0], mat[4], mat[8], mat[12]);
-			fprintf(log, "[%f, %f, %f, %f],", mat[1], mat[5], mat[9], mat[13]);
-			fprintf(log, "[%f, %f, %f, %f],", mat[2], mat[6], mat[10], mat[14]);
-			fprintf(log, "[%f, %f, %f, %f]]\n", mat[3], mat[7], mat[11], mat[15]);
-			free(mat);
-		} catch (tf::TransformException ex){
-			ROS_ERROR("TF error: %s",ex.what());
-		}
-		
-
 		pthread_mutex_lock(&frame_mutex);	// protect buffer
 		{
+		
+			// Relative transformation from robot kinematics is acquired here.
+			double *mat = frame->tf;
+			try {
+				cout << "time interval: [" << last_t << ", " << now_t << "]\n";
+				tf::StampedTransform transform;
+				// This line is by Vladimir Kubelka, blame him! :D
+				tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
+				
+				transform.getOpenGLMatrix(mat);
+				to_my_coords(mat);
+			} catch (tf::TransformException ex){
+				ROS_ERROR("TF error: %s",ex.what());
+				// ugly identity
+				mat[0] = mat[5] = mat[10] = mat[15] = 1;
+				mat[1] = mat[2] = mat[3] = mat[4] = mat[6] = mat[7] = 0;
+				mat[8] = mat[9] = mat[11] = mat[12] = mat[13] = mat[14] = 0;
+			}
+		
 			free_keypoints(frame->num_kps, frame->kps);
 
 			ROS_INFO("Computing ORB features...");
