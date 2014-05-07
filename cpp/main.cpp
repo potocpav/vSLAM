@@ -19,6 +19,7 @@
 #include "non-maxima-suppression.h"
 #include "visualize.h"
 #include "keypoints.h"
+#include "tf.h"
 
 using namespace cv;
 using namespace std;
@@ -27,6 +28,7 @@ pthread_mutex_t frame_mutex;
 pthread_cond_t cond_consumer, cond_producer;
 
 Frame *frame, *persistent_frame;
+ros::Time last_consumed_time, last_produced_time;
 
 int killed = 0;
 
@@ -52,7 +54,7 @@ class RosMain
 		int h_cells = 3, v_cells = 1;
 		int w = image.cols, h=image.rows;
 		int margin = 31;
-		ORB *orb = new ORB(1000 / h_cells / v_cells);
+		ORB *orb = new ORB(1000 / h_cells / v_cells, 1.2, 1);
 		for (int j = 0; j < v_cells; j++) {
 			for (int i = 0; i < h_cells; i++) {
 				std::vector<KeyPoint> cell_keypoints;
@@ -89,13 +91,13 @@ public:
 
 		cv::namedWindow("Keypoints");
 		
-		//log = fopen("/home/pavel/log.txt", "w");
+		log = fopen("/home/pavel/log.txt", "w");
 	}
 
 	~RosMain()
 	{
 		cv::destroyWindow("Keypoints");
-		//fclose(log);
+		fclose(log);
 	}
 
 	// features producer
@@ -112,24 +114,30 @@ public:
 			return;
 		}
 		
-		static ros::Time last_t = cv_ptr->header.stamp;
-		ros::Time now_t = cv_ptr->header.stamp;
-		
-		// Relative transformation from robot kinematics is acquired here.
-		/*
-		tf::StampedTransform transform;
-		try {
-			cout << "time interval: [" << last_t << ", " << now_t << "]\n";
-			tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
-			fprintf(log, "tf: [%f, %f, %f]\n", transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z());
-		} catch (tf::TransformException ex){
-			ROS_ERROR("TF error: %s",ex.what());
-		}
-		
-		*/
-
 		pthread_mutex_lock(&frame_mutex);	// protect buffer
 		{
+			last_produced_time = cv_ptr->header.stamp;
+			ros::Time now_t = cv_ptr->header.stamp;
+			ros::Time last_t = persistent_frame ? last_consumed_time : now_t;
+		
+			// Relative transformation from robot kinematics is acquired here.
+			double *mat = frame->tf;
+			try {
+				cout << "time interval: [" << last_t << ", " << now_t << "]\n";
+				tf::StampedTransform transform;
+				// This line is by Vladimir Kubelka, blame him! :D
+				tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
+				
+				transform.getOpenGLMatrix(mat);
+				to_my_coords(mat);
+			} catch (tf::TransformException ex){
+				ROS_ERROR("TF error: %s",ex.what());
+				// ugly identity
+				mat[0] = mat[5] = mat[10] = mat[15] = 1;
+				mat[1] = mat[2] = mat[3] = mat[4] = mat[6] = mat[7] = 0;
+				mat[8] = mat[9] = mat[11] = mat[12] = mat[13] = mat[14] = 0;
+			}
+		
 			free_keypoints(frame->num_kps, frame->kps);
 
 			ROS_INFO("Computing ORB features...");
@@ -160,7 +168,6 @@ public:
 		cv::waitKey(3);
 
 		frame_id++;
-		last_t = now_t;
 	}
 };
 
@@ -199,6 +206,7 @@ Frame *extract_keypoints()
 		}
 		ret->num_kps = nfeatures;
 		persistent_frame = ret;
+		last_consumed_time = last_produced_time;
 	}
 	pthread_mutex_unlock(&frame_mutex);	// release the buffer
 	

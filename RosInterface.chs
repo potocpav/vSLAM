@@ -2,6 +2,7 @@
 
 module RosInterface where
 
+import Numeric.LinearAlgebra ((><), Matrix, trans)
 import System.Environment (getArgs, getProgName)
 import Data.List (intercalate)
 import Foreign.C
@@ -37,13 +38,19 @@ get_descriptor_size, get_feature_id :: KeypointPtr -> IO Int
 get_descriptor_size t = {#get keypoint_t->descriptor_size#} t >>= return . fromIntegral
 get_feature_id t = {#get keypoint_t->id#} t >>= return . fromIntegral
 
+get_tf :: FramePtr -> IO (Matrix Double)
+get_tf t = do
+	values <- sequence [peekByteOff t ({#offsetof frame_t->tf#} + i * {#sizeof tf_t#}) | i <- [0..15]]
+	--values <- mapM (\ptr -> {#get tf_t#} ptr >>= return . realToFrac) tf_ptrs
+	return $ trans $ (4><4) values
+
 get_descriptor :: Int -> KeypointPtr -> IO B.ByteString
 get_descriptor n t = {#get keypoint_t->descriptor#} t >>= (\cchar -> B.packCStringLen (cchar, n))
 
 keypointById :: Int -> KeypointPtr -> KeypointPtr
 keypointById i k = plusPtr k ({# sizeof keypoint_t #} * i)
 
-getFrame :: IO (Double, [Feature])
+getFrame :: IO (Double, [Feature], Matrix Double)
 getFrame = do
 	frame_ptr <- extractKeypoints
 	kps_ptr <- get_keypoints frame_ptr
@@ -51,7 +58,8 @@ getFrame = do
 	
 	dt <- get_dt frame_ptr
 	kps <- sequence [getKeypoint i kps_ptr | i <- [0..num-1]]
-	return (dt, kps)
+	tf <- get_tf frame_ptr
+	return (dt, kps, tf)
 
 getKeypoint i kps_ptr = do
 	let kp = keypointById i kps_ptr

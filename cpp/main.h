@@ -16,6 +16,7 @@ extern "C" {
 	int test(int x);
 	struct Frame *extract_keypoints();
 	int main_c(char *args);
+	typedef double tf_t; // I doubt it would work out-of-the-box with another typedef
 	typedef struct Keypoint {
 		int id;
 		double px, py;
@@ -31,6 +32,7 @@ extern "C" {
 		int id;
 		int num_kps;
 		double dt;
+		tf_t tf[16]; // 4x4 OpenGL format transformation matrix
 		keypoint_t *kps;
 	} frame_t;
 	

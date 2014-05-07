@@ -17,11 +17,12 @@ main = do
 loop :: Int -> IO ()
 loop i = do
 	putStrLn $ "Extracting point in frame " ++ show i ++ "."
-	(dt,kps) <- getFrame
+	(dt,kps,tf) <- getFrame
 	
 	putStrLn "Saving the data..."
 	BS.writeFile (printf "/home/pavel/Documents/test/features_%04d.data" i) (encode (dt, kps)) 
 	
+	print tf
 	--sequence . map (putStrLn . show) $ kps
 	if i > 0 then print dt else return ()
 	--BS.appendFile "../kps.dump" (encode kps)
