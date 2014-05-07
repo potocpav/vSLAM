@@ -56,7 +56,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 	ps' <- if not run then return ps else
 		(flip runRVar) DevURandom $ filterUpdate
 				ps
-				(camTransition dt)
+				(camTransition dt chist)
 				meas
 	
 	if run then printBestLandmarks (snd $ head ps') frame_id else return ()
