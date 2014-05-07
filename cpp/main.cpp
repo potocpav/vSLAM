@@ -54,7 +54,7 @@ class RosMain
 		int h_cells = 3, v_cells = 1;
 		int w = image.cols, h=image.rows;
 		int margin = 31;
-		ORB *orb = new ORB(1000 / h_cells / v_cells);
+		ORB *orb = new ORB(1000 / h_cells / v_cells, 1.2, 1);
 		for (int j = 0; j < v_cells; j++) {
 			for (int i = 0; i < h_cells; i++) {
 				std::vector<KeyPoint> cell_keypoints;
