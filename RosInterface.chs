@@ -2,13 +2,14 @@
 
 module RosInterface where
 
-import Numeric.LinearAlgebra ((><), Matrix, trans)
+import Numeric.LinearAlgebra ((><), Matrix, trans, toLists)
 import System.Environment (getArgs, getProgName)
 import Data.List (intercalate)
 import Foreign.C
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
 import qualified Data.ByteString as B
 -- import Foreign.Marshal.Array
 
@@ -79,8 +80,17 @@ launchRos = do
 
 peekInt ptr = fmap fromIntegral (peek ptr)
 
+arrDouble :: Matrix Double -> (Ptr CDouble -> IO b) -> IO b
+arrDouble matrix foo = let
+	array = concat $ toLists $ trans matrix
+	carray = map realToFrac array
+	in allocaArray (length carray) (\ptr -> pokeArray ptr carray >> foo ptr)
+
 {#fun extract_keypoints as ^
 	{ } -> `FramePtr' id#}
+ 
+{#fun publish_tf as ^
+	{ arrDouble* `Matrix Double' } -> `()'#}
  
 {#fun unsafe main_c as ^
 	{ `String' } -> `Int'#}

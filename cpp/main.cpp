@@ -213,6 +213,14 @@ Frame *extract_keypoints()
 	return ret;
 }
 
+void publish_tf(double *tf) 
+{
+	printf("Heloooo!\n");
+	for (int i = 0; i < 16; i++)
+		printf("%f ", tf[i]);
+	printf("\n");
+}
+
 int argc = 0;
 char **argv;
 
