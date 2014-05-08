@@ -127,22 +127,22 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
 
 drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running observer _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
-	[drawBackground observer]
-	++ [drawMap . snd $ head ps]
+	[drawMap . snd $ head ps]
 	++ [drawCamTrajectory 0.1 chist]
 	++ (if length chists > 0 then map (drawCamTrajectory 0.05 . return) (head chists) else [])
+	++ [drawBackground observer]
 	++ [Text2d ("Frame "++show frame_id) (10,10) Helvetica10 (makeColor 0 0 0 1)]
 	-- ++ map drawTrueLandmark trueMap
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
    
 drawBackground :: V3 Double -> VisObject Double
-drawBackground (V3 x _ z) = VisObjects [Axes (1, 25), Trans (V3 x' 0 z') $ Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1)]
+drawBackground (V3 x _ z) = VisObjects [Axes (1, 25), Trans (V3 x' 0 z') $ Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1) (makeColor 0 0 0 0)]
 	where (x',z') = (2*(fromIntegral $ round (x/2)), 2*(fromIntegral $ round (z/2)))
 
 -- | Takes the seed as an argument.
 drawLandmark :: Int -> Landmark -> VisObject Double
-drawLandmark seed l = Points (map vec2v3 (take 10 $ samples l seed)) (Just 3) (makeColor 0 0 0 1) where
+drawLandmark seed l = Points (map vec2v3 (take 10 $ samples l seed)) (Just 3) (makeColor 1 1 1 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 
 drawMap :: Map -> VisObject Double
@@ -170,7 +170,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 150 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 50 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads

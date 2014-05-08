@@ -3,8 +3,6 @@
 module Playback where
 
 import Text.Printf (printf)
-import qualified Data.ByteString as BS
-import Data.Serialize
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Util ((&), (!), (#), zeros)
 
@@ -12,12 +10,10 @@ import Landmark
 import Camera
 import InternalMath
 
-measurement :: Int -> IO (Double, [Feature])
+measurement :: Int -> IO (Double, [Feature], Matrix Double)
 measurement i = do
-	bs <- BS.readFile (printf "../data/yard1-3/features_%04d.data" i)
-	return $ case decode bs of 
-		Left err -> undefined
-		Right (dt, val) -> (dt, map (\v -> v { fpos = (\(theta, phi) -> (theta, -phi)) $ fpos v }) val)
+	serialized <- readFile (printf "../data/yard4_1-octave/features_%04d.data" i)
+	return $ read bs
 
 
 -- Take the dt and the last camera position, return the next camera position estimate

@@ -119,7 +119,7 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = let
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
 singleFeatureLandmarkUpdate cam m f = case flm f of 
 	Nothing -> S.insert (initialize cam f) m
-	Just (Landmark id_l mu_l cov_l descr health) -> let
+	Just (Landmark id_l mu_l cov_l _ health) -> let
 		_H = jacobian_l cam mu_l
 		_S = _H <> cov_l <> trans _H + measurement_cov
 		_K = cov_l <> trans _H <> inv _S

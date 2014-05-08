@@ -6,7 +6,7 @@ static double px_to_rad_horizontal(double x, int width) {
 }
 
 static double px_to_rad_vertical(double y, int height) {
-	return (y / (height-1) - 0.5) * PI;
+	return -(y / (height-1) - 0.5) * PI;
 }
 
 Keypoint *keypoints_to_structs(std::vector<cv::KeyPoint> keypoints, cv::Mat descriptors, int w, int h)
