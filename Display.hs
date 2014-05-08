@@ -50,7 +50,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 		y' = (fromIntegral y) `div` 2
 		run = id $ spacePressed input'
 		
-	(dt,meas) <- if run then measurement frame_id else return (undefined, [])
+	(dt,meas,tf) <- if run then measurement frame_id else return (undefined, [], undefined)
 	if run then putStrLn $ "dt for frame " ++ show frame_id ++ ": " ++ show dt else return ()
 	-- | Run the FastSLAM routine
 	ps' <- if not run then return ps else
@@ -97,7 +97,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 printBestLandmarks :: Map -> Int -> IO ()
 printBestLandmarks m frame_id = 
 	putStrLn . show . map get_age . take 20 . sort $ Set.toList m
-	where get_age lm = frame_id - (floor $ fromIntegral (fromLID $ lid lm) / 1000)
+	where get_age lm = frame_id - (floor $ fromIntegral (fromLID $ lid lm) / (1000 :: Double))
 	
 
 keyMouseCallback :: GameState -> Key -> KeyState -> Modifiers -> Position -> GameState
@@ -126,11 +126,11 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
     
 
 drawfun :: GameState -> VisObject Double
-drawfun (GameState (Running observer _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
+drawfun (GameState (Running camPos _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
 	[drawMap . snd $ head ps]
 	++ [drawCamTrajectory 0.1 chist]
 	++ (if length chists > 0 then map (drawCamTrajectory 0.05 . return) (head chists) else [])
-	++ [drawBackground observer]
+	++ [drawBackground camPos]
 	++ [Text2d ("Frame "++show frame_id) (10,10) Helvetica10 (makeColor 0 0 0 1)]
 	-- ++ map drawTrueLandmark trueMap
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
@@ -138,7 +138,9 @@ drawfun (GameState (Running observer _ _) _ (SLAM frame_id chist chists ps)) = V
    
 drawBackground :: V3 Double -> VisObject Double
 drawBackground (V3 x _ z) = VisObjects [Axes (1, 25), Trans (V3 x' 0 z') $ Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1) (makeColor 0 0 0 0)]
-	where (x',z') = (2*(fromIntegral $ round (x/2)), 2*(fromIntegral $ round (z/2)))
+	where 
+	(x',z') = (roundToTwos x, roundToTwos z)
+	roundToTwos v = 2*(fromIntegral $ (round (v/2) :: Int))
 
 -- | Takes the seed as an argument.
 drawLandmark :: Int -> Landmark -> VisObject Double
@@ -150,7 +152,7 @@ drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 1.5) $ 
 	
 -- | TODO: Display number
 drawTrueLandmark :: (LID, V3 Double) -> VisObject Double
-drawTrueLandmark (lid, pos) = Trans pos $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
+drawTrueLandmark (_, pos) = Trans pos $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
 -- | Draw a camera with a pre-set weight
 drawCamTrajectory :: Double -> [ExactCamera] -> VisObject Double

@@ -13,7 +13,7 @@ import InternalMath
 measurement :: Int -> IO (Double, [Feature], Matrix Double)
 measurement i = do
 	serialized <- readFile (printf "../data/yard4_1-octave/features_%04d.data" i)
-	return $ read bs
+	return $ read serialized
 
 
 -- Take the dt and the last camera position, return the next camera position estimate
