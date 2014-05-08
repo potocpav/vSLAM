@@ -10,7 +10,6 @@ import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import qualified Data.ByteString as B
-import Data.Serialize
 -- import Foreign.Marshal.Array
 
 import Landmark
