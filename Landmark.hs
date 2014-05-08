@@ -9,15 +9,14 @@ import Data.Random.Distribution.Normal
 import qualified Data.ByteString as BS
 import qualified Data.Set as S
 import Data.Bits (xor, popCount)
-import Data.Serialize
 import Data.Maybe (fromJust)
 
 import InternalMath
 
 -- | Landmark ID, constituting a new type, because Integer arithmetics do not make sense.
-newtype LID = LID {fromLID :: Int} deriving (Eq, Ord, Show)
+newtype LID = LID {fromLID :: Int} deriving (Eq, Ord, Show, Read)
 -- |  Feature ID, constituting a new type, because Integer arithmetics do not make sense.
-newtype FID = FID {fromFID :: Int} deriving (Eq, Ord, Show)
+newtype FID = FID {fromFID :: Int} deriving (Eq, Ord, Show, Read)
 
 type Descriptor = BS.ByteString
 
@@ -29,9 +28,7 @@ data Landmark = Landmark
 		, lcov :: Matrix Double
 		, ldescriptor :: Descriptor
 		, lhealth :: Double
-		}
-instance Show Landmark where
-	show l = "Landmark " ++ show (lid l) ++ drop 8 (show (lmu l)) ++ "\n" ++ show (lcov l)
+		} deriving (Show, Read)
 -- | Landmarks get compared only by their ID.
 instance Eq Landmark where
 	a == b = lid a == lid b
@@ -48,22 +45,11 @@ data Feature = Feature
 		, fpos :: (Double, Double)	-- ^(theta, phi) pair in radians. (1,0) is positive-z, (0,1) is negative-y in camera coords.
 		, response :: Double		-- ^the bigger, the better corner was detected by Harris.
 		, descriptor :: Descriptor	-- ^Hamming distance is defined between the descriptors pairs.
-		}
+		} deriving (Show, Read)
 instance Eq Feature where
 	a == b = fid a == fid b
 instance Ord Feature where
 	compare a b = compare (fid a) (fid b)
-instance Show Feature where
-	show f = 
-			"Feature " ++ show (fromFID $ fid f) ++ ": " 
-			++ (if flm f == Nothing then "N" else "L"++show (fromLID . lid . fromJust $ flm f))
-			++ ", "
-			++ show (toDeg . fst $ fpos f, toDeg . snd $ fpos f) where
-		toDeg x = round $ x * 180 / pi
-		
-instance Serialize Feature where
-	put (Feature (FID i) Nothing pos resp descr) = put (i, pos, resp, descr)
-	get = do (i, pos, resp, descr) <- get; return $ Feature (FID i) Nothing pos resp descr
 	
 type Map = S.Set Landmark
 
