@@ -56,7 +56,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 	ps' <- if not run then return ps else
 		(flip runRVar) DevURandom $ filterUpdate
 				ps
-				(camTransition dt chist)
+				(camTransition dt tf)
 				meas
 	
 	if run then printBestLandmarks (snd $ head ps') frame_id else return ()
@@ -64,20 +64,6 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 	let chists' = if run then (map fst ps') : chists else chists
 	let chist' = if run then (averageCams $ map fst ps') : chist else chist
 	let frame_id' = frame_id + if run then 1 else 0
-	
-	{- 'x' key behavior
-	when (xPressed input') $ do
-		let lastCam = head $ (\(_,a,_) -> a) (head ps)
-		print lastCam
-		meas' <- measurement lastCam
-		newParticle <- (flip runRVar) DevURandom $ (\ms psl f -> sequence (map (\p -> updateParticle0 ms p f) psl))
-				(meas':mss)
-				ps
-				(camTransition cams)
-		--- sequence $ map (putStrLn.show) ((\(_,_,t)->t) (head ps))
-		print $ (\(w,_,_) -> w) (head newParticle)
-		return ()
-	-}
 	
 	when (Just (x',y') /= lastMousePos input') (pointerPosition $= (Position x' y'))
 
@@ -149,10 +135,6 @@ drawLandmark seed l = Points (map vec2v3 (take 10 $ samples l seed)) (Just 3) (m
 
 drawMap :: Map -> VisObject Double
 drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 1.5) $ Set.toList m)
-	
--- | TODO: Display number
-drawTrueLandmark :: (LID, V3 Double) -> VisObject Double
-drawTrueLandmark (_, pos) = Trans pos $ Sphere 0.15 Wireframe (makeColor 0.2 0.3 0.8 1)
 
 -- | Draw a camera with a pre-set weight
 drawCamTrajectory :: Double -> [ExactCamera] -> VisObject Double

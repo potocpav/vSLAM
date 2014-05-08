@@ -16,17 +16,24 @@ measurement i = do
 	return $ read serialized
 
 
--- Take the dt and the last camera position, return the next camera position estimate
-camTransition :: Double -> [ExactCamera] -> ExactCamera -> GaussianCamera
-camTransition dt cams (ExactCamera ccp ccr) = 
-	GaussianCamera (6|> [x',y',z',a',0,0]) ((posCov ! empty33) # (empty33 ! rotCov))
-	where 
-		camVel = camVelocity cams :: Vector Double
-		[x',y',z'] = zipWith (+) (toList ccp) (toList camVel)
-		[a',b',g'] = toList $ rotmat2euler ccr
-		posCov = ccr <> (diag $ scale dt $ 3|> [0.1, 0.1, 0.3]) <> trans ccr
-		rotCov = diag $ scale dt $ 3|> [0.3, 0.03, 0.03]
-		empty33 = zeros 3 3
+-- | Return the next camera position estimate.
+-- Note, that this function is typically partially applied, returning
+-- ExactCamera -> GaussianCamera, passed to the FastSLAM routine.
+camTransition :: Double 			-- ^ delta-time
+              -> Matrix Double 		-- ^ 4x4 transformation matrix from odometry
+              -> ExactCamera 		-- ^ Previous camera pose
+              -> GaussianCamera		-- ^ Next camera position estimate
+camTransition dt tf (ExactCamera ccp' ccr') = let 
+	prevTf = (ccr' ! asColumn ccp') # (1><4) [0,0,0,1]
+	nextTf = prevTf <> tf
+	[[ccr, ccp]] = toBlocks [3] [3,1] nextTf
+	
+	[x',y',z'] = toList $ (head.toColumns) ccp
+	[a',b',g'] = toList $ rotmat2euler ccr
+	
+	posCov = ccr <> (diag $ scale dt $ 3|> [0.1, 0.1, 0.3]) <> trans ccr
+	rotCov = diag $ scale dt $ 3|> [0.3, 0.03, 0.03]
+	in GaussianCamera (6|> [x',y',z',a',0,0]) (diagBlock [posCov, rotCov])
 
 -- | Compute the velocity from the most recent camera estimates.
 camVelocity :: [ExactCamera] -> Vector Double
