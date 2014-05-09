@@ -47,3 +47,11 @@ void to_my_coords(double *m)
 	
 	//convert : switch * rotm.inverse() *tf * rotm * switch.inverse()
 }
+
+void from_my_coords(double *m)
+{
+		lmult(m, invaxes);
+		lmult(m, rotm);
+		rmult(m, axes);
+		rmult(m, invrotm);
+}

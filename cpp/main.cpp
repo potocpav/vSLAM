@@ -4,6 +4,7 @@
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/image_encodings.h>
 #include <tf/transform_listener.h>
+#include <nav_msgs/Odometry.h>
 #include <cv_bridge/cv_bridge.h>
 
 #include <opencv2/highgui/highgui.hpp>
@@ -31,6 +32,7 @@ Frame *frame, *persistent_frame;
 ros::Time last_consumed_time, last_produced_time;
 
 int killed = 0;
+ros::Publisher g_odom_pub;
 
 class RosMain
 {
@@ -38,7 +40,6 @@ class RosMain
 	ros::NodeHandle nh_;
 	image_transport::ImageTransport it_;
 	image_transport::Subscriber image_sub_;
-	//image_transport::Publisher image_pub_;
 	cv::Mat mask;
 	tf::TransformListener tf_listener;
 	
@@ -83,8 +84,7 @@ public:
 	{
 		// Subscrive to input video feed and publish output video feed
 		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, &RosMain::imageCb, this);
-		//image_pub_ = it_.advertise("/image_converter/output_video", 1);
-		
+		g_odom_pub = nh_.advertise<nav_msgs::Odometry>("vslam", 50);
 
 		cv::Mat mask0 = cv::imread("../res/panomask4.png"); // TODO: garbage collection?
 		cv::cvtColor(mask0, mask, CV_RGB2GRAY);
@@ -132,10 +132,11 @@ public:
 				to_my_coords(mat);
 			} catch (tf::TransformException ex){
 				ROS_ERROR("TF error: %s",ex.what());
-				// ugly identity
-				mat[0] = mat[5] = mat[10] = mat[15] = 1;
-				mat[1] = mat[2] = mat[3] = mat[4] = mat[6] = mat[7] = 0;
-				mat[8] = mat[9] = mat[11] = mat[12] = mat[13] = mat[14] = 0;
+				// identity
+				mat[0] = mat[5]   = mat[10] = mat[15] = 1;
+				mat[1] = mat[2]   =  mat[3] =  mat[4] = 0;
+				mat[6] = mat[7]   =  mat[8] =  mat[9] = 0;
+				mat[11] = mat[12] = mat[13] = mat[14] = 0;
 			}
 		
 			free_keypoints(frame->num_kps, frame->kps);
@@ -214,11 +215,25 @@ Frame *extract_keypoints()
 }
 
 void publish_tf(double *tf) 
-{
-	printf("Heloooo!\n");
-	for (int i = 0; i < 16; i++)
-		printf("%f ", tf[i]);
-	printf("\n");
+{	
+	ROS_INFO("Publishing the transformation...");
+	
+	from_my_coords(tf);
+	tf::Transform transform;
+	transform.setFromOpenGLMatrix(tf);
+	tf::Vector3 origin = transform.getOrigin();
+	
+	//next, we'll publish the odometry message over ROS
+	nav_msgs::Odometry odom;
+	odom.header.stamp = ros::Time::now(); // TODO: Change the time for the correct time, when the images were acquired.
+	odom.header.frame_id = "odom";
+	odom.child_frame_id = "omnicam";
+	odom.pose.pose.position.x = origin.x();
+	odom.pose.pose.position.y = origin.y();
+	odom.pose.pose.position.z = origin.z();
+	// TODO: publish orientation
+	// Twist is not determined.
+	g_odom_pub.publish(odom);
 }
 
 int argc = 0;

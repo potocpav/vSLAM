@@ -21,6 +21,8 @@ loop i = do
 	putStrLn "Saving the data..."
 	writeFile (printf "/home/pavel/Documents/test/features_%04d.data" i) $ prettyPrintTuple dt kps tf
 	
+	publishTf tf
+	
 	if i > 0 then print dt else return ()
 	loop (i+1)
 
