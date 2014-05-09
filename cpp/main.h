@@ -17,15 +17,14 @@ extern "C" {
 	struct Frame *extract_keypoints();
 	int main_c(char *args);
 	typedef double tf_t; // I doubt it would work out-of-the-box with another typedef
+	
 	typedef struct Keypoint {
-		int id;
-		double px, py;
-		int octave;
-		float response;
-		// float angle;
-		// float size;
+		int id;              // A globally-unique id
+		double px, py;       // azimuth-elevation pair
+		int octave;          // image pyramid level
+		float response;      // response strength
 		int descriptor_size;
-		char *descriptor;
+		char *descriptor;    // a BRIEF descriptor
 	} keypoint_t;
 	
 	typedef struct Frame {
