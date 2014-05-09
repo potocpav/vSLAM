@@ -20,14 +20,12 @@ extern "C" {
 	int main_c(char *args);
 	
 	typedef struct Keypoint {
-		int id;
-		double px, py;
-		int octave;
-		float response;
-		// float angle;
-		// float size;
+		int id;              // A globally-unique id
+		double px, py;       // azimuth-elevation pair
+		int octave;          // image pyramid level
+		float response;      // response strength
 		int descriptor_size;
-		char *descriptor;
+		char *descriptor;    // a BRIEF descriptor
 	} keypoint_t;
 	
 	typedef struct Frame {
