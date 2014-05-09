@@ -73,12 +73,12 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 		(SLAM (frame_id') chist' chists' ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			v = rotateXyzAboutY (V3 (d-a) (dn-up) (w-s)) yaw where
-					w = if keyPressed 'w' then 3 else 0
-					a = if keyPressed 'a' then 3 else 0
-					s = if keyPressed 'r' then 3 else 0
-					d = if keyPressed 's' then 3 else 0
-					up = if keyPressed 'p' then 3 else 0
-					dn = if keyPressed 't' then 3 else 0
+					w = if keyPressed 'w' then 10 else 0
+					a = if keyPressed 'a' then 10 else 0
+					s = if keyPressed 'r' then 10 else 0
+					d = if keyPressed 's' then 10 else 0
+					up = if keyPressed 'p' then 10 else 0
+					dn = if keyPressed 't' then 10 else 0
 
 printBestLandmarks :: Map -> Int -> IO ()
 printBestLandmarks m frame_id = 
@@ -154,7 +154,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 50 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 50 [] [] (replicate 1 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads

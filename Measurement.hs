@@ -10,11 +10,10 @@ import Camera
 
 -- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
 initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,0.005,0.005,0.5])
+initialCov = diag(6|> [0,0,0,0.005,0.005,0.8])
 
--- | TODO: check the correctness of this value (10 or 1/10 or other?)
 initialRho :: Double
-initialRho = 0.2
+initialRho = 0.1
 
 
 -- | Initialize a landmark from a single measurement. Tuple contains mean theta and phi angles,
