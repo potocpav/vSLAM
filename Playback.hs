@@ -28,7 +28,7 @@ camTransition dt tf (ExactCamera ccp' ccr') = let
 	nextTf = prevTf <> tf
 	[[ccr, ccp]] = toBlocks [3] [3,1] nextTf
 	
-	[x',y',z'] = toList $ (head.toColumns) $ asColumn ccp'
+	[x',y',z'] = toList $ (head.toColumns) ccp
 	[a',b',g'] = toList $ rotmat2euler ccr
 	
 	posCov = ccr <> (diag $ scale dt $ 3|> [0.05, 0.05, 0.1]) <> trans ccr
