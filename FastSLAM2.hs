@@ -7,7 +7,7 @@ import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
 import Data.Random.Extras (shuffle)
---import Data.List (foldl')
+import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import qualified Data.Set as S
 
@@ -20,13 +20,6 @@ import InternalMath
 measurement_cov :: Matrix Double
 measurement_cov = diag (2|> [0.005, 0.005])
 
-
--- | Find a landmark with a specified ID in a map.
---findLm :: LID -> Map -> Maybe Landmark
---findLm i lms = if mGE_lm == Just dummyLm then mGE_lm else Nothing where
---	dummyLm = Landmark i undefined undefined undefined
---	mGE_lm = S.lookupGE dummyLm lms
-	
 
 -- | Return 2D gaussian of search coordinates in projective space (theta, phi)
 searchRegion :: (GaussianCamera, Landmark) -> Gauss
@@ -46,17 +39,18 @@ pruneLandmarks ms = S.map fade $ S.filter (\l -> lhealth l > 0) ms where
 	
 
 -- | TODO: comment the revamped routine here, along with its parameters.
-updateCamera :: [Landmark] 
+updateCamera :: Double -- min_health
+             -> [Landmark] 
              -> (Double, S.Set Feature, GaussianCamera) 
              -> (Double, S.Set Feature, GaussianCamera)
-updateCamera [] x = x
-updateCamera (lm':ss) (w', fs', gc') = 
+updateCamera _ [] x = x
+updateCamera minHealth (lm':ss) (w', fs', gc') = 
 	case guidedMatch (lm', searchRegion (gc', lm')) fs' of
-	Nothing -> updateCamera ss (w'*0.2, fs', gc')
+	Nothing -> updateCamera minHealth ss (w'*0.2, fs', gc')
 	Just (w,f) -> let
 		gc = singleFeatureCameraUpdate gc' f
-		fs = S.insert f fs'
-		in updateCamera ss (w*w', fs, gc)
+		fs = S.insert f fs'						-- Replace an old feature with an associated one.
+		in if lhealth (fromJust (flm f)) >= minHealth then debug "updated" "" `seq` updateCamera minHealth ss (w*w', fs, gc) else debug "omitted" "" `seq` updateCamera minHealth ss (w', fs, gc')
 	
 
 guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> Maybe (Double, Feature)
@@ -158,14 +152,15 @@ filterUpdate input_state camTransition features = do
 			pruned_lms :: S.Set Landmark
 			pruned_lms = pruneLandmarks input_map
 		
-			--searched_regions :: RVar [(Landmark, Gauss)]
-			--searched_regions = return $ 
-			--		map (curry searchRegion $ gaussian_proposal) (S.toList pruned_lms)
-			
 		return $ do
-			lm_list <- shuffle $ S.toList pruned_lms
+			-- To find a treshold health, the list is sorted.
+			-- All the landmarks with lower health do not contribute to the camera update.
+			--let sorted_lm_list = sortBy (\l1 l2 -> lhealth l2 `compare` lhealth l1) $ S.toList pruned_lms
+			--let min_health = debug "min. health" $ lhealth $ last sorted_lm_list  -- !! 20
+			
+			lm_list <- shuffle sorted_lm_list
 			let (w, matched_features, updated_camera) =
-				updateCamera lm_list (1, feature_set, gaussian_proposal)
+				updateCamera (-1) lm_list (1, feature_set, gaussian_proposal)
 			return (w, (updated_camera, pruned_lms, matched_features))
 
 	-- resampled_state :: [(ExactCamera, Map, S.Set Feature)]

@@ -73,12 +73,12 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 		(SLAM (frame_id') chist' chists' ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			v = rotateXyzAboutY (V3 (d-a) (dn-up) (w-s)) yaw where
-					w = if keyPressed 'w' then 3 else 0
-					a = if keyPressed 'a' then 3 else 0
-					s = if keyPressed 'r' then 3 else 0
-					d = if keyPressed 's' then 3 else 0
-					up = if keyPressed 'p' then 3 else 0
-					dn = if keyPressed 't' then 3 else 0
+					w = if keyPressed 'w' then 10 else 0
+					a = if keyPressed 'a' then 10 else 0
+					s = if keyPressed 'r' then 10 else 0
+					d = if keyPressed 's' then 10 else 0
+					up = if keyPressed 'p' then 10 else 0
+					dn = if keyPressed 't' then 10 else 0
 
 printBestLandmarks :: Map -> Int -> IO ()
 printBestLandmarks m frame_id = 

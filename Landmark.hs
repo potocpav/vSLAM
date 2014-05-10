@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 
 module Landmark where
 
@@ -75,7 +76,7 @@ inverse2euclidean (Landmark id' mu cov d' lh') = Landmark id' mu' cov' d' lh' wh
 -- | The number of different bits between the descriptor.
 -- Or, the number of set bits after a XOR operation.
 hammingDist :: Descriptor -> Descriptor -> Int
-hammingDist d1 d2 = foldl' (\a w -> popCount w + a) 0 (BS.zipWith xor d1 d2)
+hammingDist d1 d2 = foldl' (\ !a !w -> popCount w + a) 0 (BS.zipWith xor d1 d2)
 
 
 -- | Return a pseudo-random point from the landmark distribution converted to

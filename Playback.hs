@@ -12,7 +12,7 @@ import InternalMath
 
 measurement :: Int -> IO (Double, [Feature], Matrix Double)
 measurement i = do
-	serialized <- readFile (printf "../data/yard4_1-octave/features_%04d.data" i)
+	serialized <- readFile (printf "../data/yard4-v2/features_%04d.data" i)
 	return $ read serialized
 
 
@@ -31,9 +31,9 @@ camTransition dt tf (ExactCamera ccp' ccr') = let
 	[x',y',z'] = toList $ (head.toColumns) ccp
 	[a',b',g'] = toList $ rotmat2euler ccr
 	
-	posCov = ccr <> (diag $ scale dt $ 3|> [0.1, 0.1, 0.3]) <> trans ccr
-	rotCov = diag $ scale dt $ 3|> [0.3, 0.03, 0.03]
-	in GaussianCamera (6|> [x',y',z',a',0,0]) (diagBlock [posCov, rotCov])
+	posCov = ccr <> (diag $ scale dt $ 3|> [0.05, 0.05, 0.1]) <> trans ccr
+	rotCov = diag $ scale dt $ 3|> [0.01, 0.01, 0.01]
+	in GaussianCamera (6|> [x',y',z',a',b',g']) (diagBlock [posCov, rotCov])
 
 -- | Compute the velocity from the most recent camera estimates.
 camVelocity :: [ExactCamera] -> Vector Double
