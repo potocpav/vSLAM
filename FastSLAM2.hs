@@ -158,7 +158,7 @@ filterUpdate input_state camTransition features = do
 			--let sorted_lm_list = sortBy (\l1 l2 -> lhealth l2 `compare` lhealth l1) $ S.toList pruned_lms
 			--let min_health = debug "min. health" $ lhealth $ last sorted_lm_list  -- !! 20
 			
-			lm_list <- shuffle sorted_lm_list
+			lm_list <- shuffle $ S.toList pruned_lms
 			let (w, matched_features, updated_camera) =
 				updateCamera (-1) lm_list (1, feature_set, gaussian_proposal)
 			return (w, (updated_camera, pruned_lms, matched_features))
