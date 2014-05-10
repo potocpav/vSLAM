@@ -25,8 +25,9 @@ import Landmark
 get_keypoints :: FramePtr -> IO KeypointPtr
 get_keypoints t = {#get frame_t->kps#} t
 
-get_n_kps :: FramePtr -> IO Int
+get_n_kps, get_id :: FramePtr -> IO Int
 get_n_kps t = {#get frame_t->num_kps#} t >>= return . fromIntegral
+get_id t = {#get frame_t->id#} t >>= return . fromIntegral
 
 get_px, get_py, get_response, get_dt :: KeypointPtr -> IO Double
 get_px t = {#get keypoint_t->px#} t >>= return . realToFrac
@@ -50,16 +51,17 @@ get_descriptor n t = {#get keypoint_t->descriptor#} t >>= (\cchar -> B.packCStri
 keypointById :: Int -> KeypointPtr -> KeypointPtr
 keypointById i k = plusPtr k ({# sizeof keypoint_t #} * i)
 
-getFrame :: IO (Double, [Feature], Matrix Double)
+getFrame :: IO (Int, Double, [Feature], Matrix Double)
 getFrame = do
 	frame_ptr <- extractKeypoints
 	kps_ptr <- get_keypoints frame_ptr
 	num <- get_n_kps frame_ptr
 	
+	id <- get_id frame_ptr
 	dt <- get_dt frame_ptr
 	kps <- sequence [getKeypoint i kps_ptr | i <- [0..num-1]]
 	tf <- get_tf frame_ptr
-	return (dt, kps, tf)
+	return (id, dt, kps, tf)
 
 getKeypoint i kps_ptr = do
 	let kp = keypointById i kps_ptr
