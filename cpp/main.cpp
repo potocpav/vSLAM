@@ -13,7 +13,6 @@
 #include <pthread.h> // compared to Boost, this is frickin' lightweight!! :D
 #include <unistd.h> // execl
 #include <signal.h> // kill, SIGTERM
-// #include <stdio.h>
 #include <wordexp.h> // strtok (fused args splitting)
 
 #include "main.h"
@@ -178,9 +177,6 @@ public:
 // image, if called too late.
 Frame *extract_keypoints()
 {	
-	if (killed) {
-		printf("extract_keypoints detected the ROS thread was killed.\n");
-	}
 	
 	Frame *ret = (Frame *)malloc(sizeof(Frame));
 	// save features to the global structure
@@ -188,6 +184,10 @@ Frame *extract_keypoints()
 	{
 		printf("waiting for the producer of keypoints to produce something...\n");
 		pthread_cond_wait(&cond_consumer, &frame_mutex);
+		if (killed) {
+			printf("extract_keypoints detected the ROS thread was killed.\n");
+			return NULL;
+		}
 		
 		Keypoint *features = frame->kps;
 		int nfeatures = frame->num_kps;
@@ -244,11 +244,16 @@ static void *ros_init (void *arg)
 	// ROS loop init
 	ros::init(argc, argv, "fastSLAM_2");
 	RosMain ic;
-
+	
 	printf("Starting the main ROS loop...\n");
 	ros::spin();
 	printf("Exitted the main ROS loop.\n");
+	
+	// let the other thread go
 	killed = 1;
+	pthread_mutex_lock(&frame_mutex);
+	pthread_cond_signal(&cond_consumer);
+	pthread_mutex_unlock(&frame_mutex);
 	return 0;
 }
 
@@ -260,13 +265,13 @@ int main_c(char *args) {
 	argv[0] = strtok (args, delimiter);
 	while (argv[++argc] = strtok (0, delimiter)) { }
 	
-	// Spawning the main loop
 	pthread_t ros_loop_thread;
 	int rc = pthread_create(&ros_loop_thread, NULL, ros_init, NULL);
     if (rc) {
          printf("ERROR: return code from pthread_create() is %d\n", rc);
          exit(-1);
     }
+    
 	printf("main is finishing\n");
 	return 0;
 }
