@@ -9,6 +9,7 @@ import Numeric.LinearAlgebra.Util ((&), zeros)
 import Landmark
 import Camera
 import InternalMath
+import Parameters
 
 measurement :: Int -> IO (Double, [Feature], Matrix Double)
 measurement i = do
@@ -25,14 +26,14 @@ camTransition :: Double 			-- ^ delta-time
               -> GaussianCamera		-- ^ Next camera position estimate
 camTransition dt tf cam' = let 
 	prevTf = camToTF cam'
-	nextTf = prevTf <> tf
+	nextTf = prevTf -- <> tf
 	[[ccr, ccp]] = toBlocks [3] [3,1] nextTf
 	
 	[x',y',z'] = toList $ (head.toColumns) ccp
 	[a',b',g'] = toList $ rotmat2euler ccr
 	
-	posCov = ccr <> (diag $ scale dt $ 3|> [0.03, 0.03, 0.03]) <> trans ccr
-	rotCov = diag $ scale dt $ 3|> [0.04, 0.01, 0.01]
+	posCov = ccr <> (diag $ scale dt $ 3|> kinematicsPosCov) <> trans ccr
+	rotCov = diag $ scale dt $ 3|> kinematicsRotCov
 	in GaussianCamera (6|> [x',y',z',a',b',g']) (diagBlock [posCov, rotCov])
 
 -- | Compute the velocity from the most recent camera estimates.

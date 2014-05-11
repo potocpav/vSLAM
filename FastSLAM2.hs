@@ -9,16 +9,14 @@ import Data.Random.Distribution.Categorical (weightedCategorical)
 import Data.Random.Extras (shuffle)
 -- import Data.List (sortBy)
 import Data.Maybe (fromJust)
+import Data.List (foldl')
 import qualified Data.Set as S
 
 import Landmark
 import Camera
 import Measurement
 import InternalMath
-
--- | TODO: tie this with the covariance, defined for observations in Measurement.hs
-measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [(0.5 * pi / 180)^^2, (0.5 * pi / 180)^^2])
+import Parameters
 
 
 -- | Return 2D gaussian of search coordinates in projective space (theta, phi)
@@ -110,8 +108,8 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = let
 	in GaussianCamera mu_c' cov_c'
 	
 
-singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
-singleFeatureLandmarkUpdate cam m f = case flm f of 
+singleFeatureLandmarkUpdate :: ExactCamera -> Bool -> Map -> Feature -> Map
+singleFeatureLandmarkUpdate cam update m f = case flm f of 
 	Nothing -> S.insert (initialize cam f) m
 	Just (Landmark id_l mu_l cov_l _ health) -> let
 		_H = jacobian_l cam mu_l
@@ -125,11 +123,14 @@ singleFeatureLandmarkUpdate cam m f = case flm f of
 		mu' = mu_l + _K <> (2|> [z_theta `cyclicDiff` z_theta', z_phi - z_phi'])
 		cov' = _P
 		
-		in S.insert (Landmark id_l mu' cov' (descriptor f) (health+(20-health)/10)) m
+		in if update then
+			S.insert (Landmark id_l mu' cov' (descriptor f) (health+(20-health)/10)) m
+		   else
+		    S.insert (Landmark id_l mu_l cov_l (descriptor f) (health+(20-health)/10)) m
 
 
-mapUpdate :: ExactCamera -> Map -> S.Set Feature -> Map
-mapUpdate cam m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
+mapUpdate :: ExactCamera -> Bool -> Map -> S.Set Feature -> Map
+mapUpdate cam update m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam update) m fs
 
 
 filterUpdate :: [(ExactCamera, Map)] 
@@ -153,22 +154,41 @@ filterUpdate input_state camTransition features = do
 			pruned_lms = pruneLandmarks input_map
 		
 		return $ do
-			-- To find a treshold health, the list is sorted.
-			-- All the landmarks with lower health do not contribute to the camera update.
-			--let sorted_lm_list = sortBy (\l1 l2 -> lhealth l2 `compare` lhealth l1) $ S.toList pruned_lms
-			--let min_health = debug "min. health" $ lhealth $ last sorted_lm_list  -- !! 20
-			
+		
 			lm_list <- shuffle $ S.toList pruned_lms
 			let (w, matched_features, updated_camera) =
 				updateCamera (-1) lm_list (1, feature_set, gaussian_proposal)
 			return (w, (updated_camera, pruned_lms, matched_features))
 
+	-- if stationary, do not update the landmarks
+	let update_lms :: Bool
+	    update_lms = debug "update" $ not $ tooSmallMotions (map fst input_state) (map (\(_,(gc,_,_))->gc) gaussian_mixture)
+		
+	-- MAYBE TODO: if stationary, do not update camera positions
 	-- resampled_state :: [(ExactCamera, Map, S.Set Feature)]
 	resampled_state <- camerasSample gaussian_mixture
-	
+		
 	let 
 		new_maps :: [Map]
-		new_maps = map (\(c,m,f) -> mapUpdate c m f) resampled_state
-		
+		new_maps = map (\(c,m,f) -> mapUpdate c update_lms m f) resampled_state
+			
 	return $ zip (map (\(ec,_,_) -> ec) resampled_state) new_maps
 
+
+-- | If the robot does not move sufficiently, the frame must be dropped.
+-- Otherwise, the map enlarges, due to the fluctulations from random sampling.
+-- TODO: consider removing the rotational part of the code.
+tooSmallMotion :: ExactCamera -> GaussianCamera -> Bool
+tooSmallMotion (ExactCamera c1p c1r) (GaussianCamera gc _) = let
+	[c2p, c2e] = takesV [3,3] gc
+	c1e = rotmat2euler c1r
+	posDiff = sqrt $ sumElements((c2p - c1p)^(2::Int))
+	angleDiff = sqrt $ sumElements((c2e - c1e)^(2::Int)) -- TODO: check the euclidean dist. correctness
+	in posDiff < smallMotionTreshold
+
+tooSmallMotions :: [ExactCamera] -> [GaussianCamera] -> Bool
+tooSmallMotions ecs gcs = sumBools [tooSmallMotion (fst x) (snd x) | x <- zip ecs gcs] where
+	-- | True if at least a certain proportion of the list is True
+	sumBools :: [Bool] -> Bool
+	sumBools bs = foldl' (\a b -> a + toNum b) 0 bs >= fromIntegral (length bs) / (2 :: Double)
+	toNum b = if b then 1 else -1
