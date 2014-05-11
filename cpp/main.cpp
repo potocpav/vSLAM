@@ -158,7 +158,13 @@ public:
 			printf("nfeatures: %d\n", frame->num_kps);
 			
 			// Produced another value successfully!
-			pthread_cond_signal(&cond_consumer);
+			if (!too_small_movement(frame->kps, frame->num_kps)) {
+				pthread_cond_signal(&cond_consumer);
+			} else {
+				ROS_INFO("Ignored a frame with no significant movement.");
+				// reset the time. Oh well, this is a 'fake' last_consumed_time from now on.
+				last_consumed_time = now_t;
+			}
 		}
 		pthread_mutex_unlock(&frame_mutex);	// release the buffer
 		

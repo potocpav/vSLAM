@@ -1,6 +1,8 @@
 
 #include "keypoints.h"
 
+#include <stdio.h>
+
 double px_to_rad_horizontal(double x, int width) {
 	return (x / (width-1) - 0.5) * 2*PI;
 }
@@ -48,12 +50,32 @@ void free_keypoints(int count, Keypoint *kp)
 	}
 }
 
-
-bool too_small_movement(Keypoint *last)
+// This one is copying the whole '*last' array, and keeping it for one
+// iteration as a static variable.
+bool too_small_movement(Keypoint *last, int lastlen)
 {
 	static Keypoint *prev = NULL;
-	if (!prev) return False;
+	static int prevlen = -1;
+	const double treshold = 2*PI / 2000; // rad
+	int static_count = 0;
 	
-	return False;
+	if (!prev) goto end; // mwehehe!
 	
+	for (int i = 0; i < lastlen; i++) {
+		for (int j = 0; j < prevlen; j++) {
+			double dist2 = (last[i].px-prev[j].px)*(last[i].px-prev[j].px) 
+			             + (last[i].py-prev[j].py)*(last[i].py-prev[j].py);
+			if (dist2 <= treshold*treshold) {
+				static_count++;
+				break;
+			}
+		}
+	}
+	
+	free(prev);
+end:
+	prev = (Keypoint *)malloc(lastlen * sizeof(Keypoint));
+	memcpy(prev, last, lastlen * sizeof(Keypoint)); 
+	prevlen = lastlen;
+	return static_count > lastlen / 5.0;
 }
