@@ -10,8 +10,9 @@ import Camera
 import InternalMath
 
 
+-- (~=), (~~=) :: Double -> Double -> Bool
 a ~= b = abs (a-b) < 10^^(-12) -- ^ equality test for doubles
-a ~~= b = (isNaN a && isNaN b) || abs (a-b) < 10^^(-4) -- ^ decreased precision test for doubles
+a ~~= b = (isNaN a && isNaN b) || abs (a-b) < 10^^(-5) -- ^ decreased precision test for doubles
 infix 4 ~=, ~~=
 
 -- | Z1,Y2,Z3-type euler angles
@@ -60,8 +61,11 @@ test_jacobian_l = deepCheck f where
 			 
 -- | Analogous to the test_jacobian_l function.
 test_jacobian_c = deepCheck f where
+	--cx,cy,cz,alpha,beta,gamma :: Double
+	--((cx,cy,cz),(alpha,beta,gamma)) = ((0,0,0),(0,0,0))
+	
 	f :: (Hexplet, Hexplet, Hexplet) -> Bool
-	f (((cx,cy,cz),(alpha,beta,gamma)),      -- ^random camera
+	f (((cx,cy,cz),(alpha,beta,gamma)),     -- ^random camera
 	   ((x,y,z),(theta,phi,rho)),       -- ^random feature
 	   ((dcx,dcy,dcz),(dalpha,dbeta,dgamma))) -- ^random derivation direction
 		
@@ -104,7 +108,7 @@ test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 		(a, b) = normalize angles
 		normalize = vec2euler.euler2vec
 		
-		f_mu = lmu $ initialize cam (Feature undefined angles)
+		f_mu = lmu $ initialize cam (Feature undefined undefined angles undefined undefined)
 		(a', b') = normalize $ measure cam f_mu
 		
 --------------------------------------------------------------------------------
