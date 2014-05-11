@@ -18,7 +18,7 @@ import InternalMath
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [0.005, 0.005])
+measurement_cov = diag (2|> [(0.5 * pi / 180)^^2, (0.5 * pi / 180)^^2])
 
 
 -- | Return 2D gaussian of search coordinates in projective space (theta, phi)

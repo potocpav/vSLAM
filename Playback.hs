@@ -31,8 +31,8 @@ camTransition dt tf cam' = let
 	[x',y',z'] = toList $ (head.toColumns) ccp
 	[a',b',g'] = toList $ rotmat2euler ccr
 	
-	posCov = ccr <> (diag $ scale dt $ 3|> [0.05, 0.05, 0.1]) <> trans ccr
-	rotCov = diag $ scale dt $ 3|> [0.01, 0.01, 0.01]
+	posCov = ccr <> (diag $ scale dt $ 3|> [0.03, 0.03, 0.03]) <> trans ccr
+	rotCov = diag $ scale dt $ 3|> [0.04, 0.01, 0.01]
 	in GaussianCamera (6|> [x',y',z',a',b',g']) (diagBlock [posCov, rotCov])
 
 -- | Compute the velocity from the most recent camera estimates.

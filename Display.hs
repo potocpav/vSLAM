@@ -140,7 +140,7 @@ drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 1.5) $ 
 drawCamTrajectory :: Double -> [ExactCamera] -> VisObject Double
 drawCamTrajectory _ [] = VisObjects []
 drawCamTrajectory w (ExactCamera cp cr:cs) = VisObjects $
-	Line (v2V cp : map (\(ExactCamera p _) -> v2V p) cs) (makeColor 0 0 1 1) : [drawCam]
+	Line (v2V cp : map (\(ExactCamera p _) -> v2V p) cs) (makeColor 0 1 0 1) : [drawCam]
 		 where
 			drawCam = Trans (v2V cp) $ VisObjects 
 					[ Cube w Wireframe (makeColor 1 0 0 1)
@@ -154,7 +154,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 50 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 50 [] [] (replicate 30 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
