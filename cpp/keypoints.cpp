@@ -47,3 +47,13 @@ void free_keypoints(int count, Keypoint *kp)
 		free(kp);
 	}
 }
+
+
+bool too_small_movement(Keypoint *last)
+{
+	static Keypoint *prev = NULL;
+	if (!prev) return False;
+	
+	return False;
+	
+}

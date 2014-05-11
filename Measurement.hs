@@ -7,14 +7,7 @@ import Numeric.LinearAlgebra.Util ((!))
 import InternalMath
 import Landmark
 import Camera
-
--- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
-initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,(0.5 * pi / 180)^^2,(0.5 * pi / 180)^^2, 1])
-
-initialRho :: Double
-initialRho = 0.1
-
+import Parameters
 
 -- | Initialize a landmark from a single measurement. Tuple contains mean theta and phi angles,
 -- relative to the robot (the bearing of an observed feature).

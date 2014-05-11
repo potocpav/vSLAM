@@ -9,16 +9,14 @@ import Data.Random.Distribution.Categorical (weightedCategorical)
 import Data.Random.Extras (shuffle)
 -- import Data.List (sortBy)
 import Data.Maybe (fromJust)
+import Data.List (foldl')
 import qualified Data.Set as S
 
 import Landmark
 import Camera
 import Measurement
 import InternalMath
-
--- | TODO: tie this with the covariance, defined for observations in Measurement.hs
-measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [(0.5 * pi / 180)^^2, (0.5 * pi / 180)^^2])
+import Parameters
 
 
 -- | Return 2D gaussian of search coordinates in projective space (theta, phi)
@@ -50,7 +48,9 @@ updateCamera minHealth (lm':ss) (w', fs', gc') =
 	Just (w,f) -> let
 		gc = singleFeatureCameraUpdate gc' f
 		fs = S.insert f fs'						-- Replace an old feature with an associated one.
-		in if lhealth (fromJust (flm f)) >= minHealth then debug "updated" "" `seq` updateCamera minHealth ss (w*w', fs, gc) else debug "omitted" "" `seq` updateCamera minHealth ss (w', fs, gc')
+		in if lhealth (fromJust (flm f)) >= minHealth 
+			then updateCamera minHealth ss (w*w', fs, gc) 
+			else updateCamera minHealth ss (w', fs, gc')
 	
 
 guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> Maybe (Double, Feature)
@@ -129,7 +129,7 @@ singleFeatureLandmarkUpdate cam m f = case flm f of
 
 
 mapUpdate :: ExactCamera -> Map -> S.Set Feature -> Map
-mapUpdate cam m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
+mapUpdate cam  m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
 
 
 filterUpdate :: [(ExactCamera, Map)] 
@@ -153,22 +153,17 @@ filterUpdate input_state camTransition features = do
 			pruned_lms = pruneLandmarks input_map
 		
 		return $ do
-			-- To find a treshold health, the list is sorted.
-			-- All the landmarks with lower health do not contribute to the camera update.
-			--let sorted_lm_list = sortBy (\l1 l2 -> lhealth l2 `compare` lhealth l1) $ S.toList pruned_lms
-			--let min_health = debug "min. health" $ lhealth $ last sorted_lm_list  -- !! 20
-			
+		
 			lm_list <- shuffle $ S.toList pruned_lms
 			let (w, matched_features, updated_camera) =
 				updateCamera (-1) lm_list (1, feature_set, gaussian_proposal)
 			return (w, (updated_camera, pruned_lms, matched_features))
 
+	-- MAYBE TODO: if stationary, do not update camera positions
 	-- resampled_state :: [(ExactCamera, Map, S.Set Feature)]
 	resampled_state <- camerasSample gaussian_mixture
-	
 	let 
 		new_maps :: [Map]
 		new_maps = map (\(c,m,f) -> mapUpdate c m f) resampled_state
-		
+			
 	return $ zip (map (\(ec,_,_) -> ec) resampled_state) new_maps
-
