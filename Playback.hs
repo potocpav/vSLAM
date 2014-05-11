@@ -4,7 +4,7 @@ module Playback where
 
 import Text.Printf (printf)
 import Numeric.LinearAlgebra
-import Numeric.LinearAlgebra.Util ((&), (!), (#), zeros)
+import Numeric.LinearAlgebra.Util ((&), zeros)
 
 import Landmark
 import Camera
@@ -23,8 +23,8 @@ camTransition :: Double 			-- ^ delta-time
               -> Matrix Double 		-- ^ 4x4 transformation matrix from odometry
               -> ExactCamera 		-- ^ Previous camera pose
               -> GaussianCamera		-- ^ Next camera position estimate
-camTransition dt tf (ExactCamera ccp' ccr') = let 
-	prevTf = (ccr' ! asColumn ccp') # (1><4) [0,0,0,1]
+camTransition dt tf cam' = let 
+	prevTf = camToTF cam'
 	nextTf = prevTf <> tf
 	[[ccr, ccp]] = toBlocks [3] [3,1] nextTf
 	
@@ -38,5 +38,5 @@ camTransition dt tf (ExactCamera ccp' ccr') = let
 -- | Compute the velocity from the most recent camera estimates.
 camVelocity :: [ExactCamera] -> Vector Double
 camVelocity [ExactCamera cp1 _, ExactCamera cp2 _] =
-	(cp1 - cp2) & (3|> [0..])
+	(cp1 - cp2) & (3|> repeat 0)
 camVelocity _ = 6|> repeat 0

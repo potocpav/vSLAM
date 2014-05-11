@@ -1,12 +1,20 @@
 
 #include "keypoints.h"
 
-static double px_to_rad_horizontal(double x, int width) {
+double px_to_rad_horizontal(double x, int width) {
 	return (x / (width-1) - 0.5) * 2*PI;
 }
 
-static double px_to_rad_vertical(double y, int height) {
+double px_to_rad_vertical(double y, int height) {
 	return -(y / (height-1) - 0.5) * PI;
+}
+
+double rad_to_px_horizontal(double x, int width) {
+	return (x / (2*PI) + 0.5) * (width-1);
+}
+
+double rad_to_px_vertical(double y, int height) {
+	return (-y / PI + 0.5) * (height-1);
 }
 
 Keypoint *keypoints_to_structs(std::vector<cv::KeyPoint> keypoints, cv::Mat descriptors, int w, int h)

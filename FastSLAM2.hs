@@ -7,7 +7,7 @@ import Data.Random (RVar)
 import Data.Random.Distribution.Normal
 import Data.Random.Distribution.Categorical (weightedCategorical)
 import Data.Random.Extras (shuffle)
-import Data.List (sortBy)
+-- import Data.List (sortBy)
 import Data.Maybe (fromJust)
 import qualified Data.Set as S
 
