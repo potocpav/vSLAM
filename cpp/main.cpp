@@ -221,11 +221,13 @@ void publish_tf(double *tf)
 	from_my_coords(tf);
 	tf::Transform transform;
 	transform.setFromOpenGLMatrix(tf);
+	//tf::StampedTransform stamped(tf, last_consumed_time, "/odom", "/omnicam");
+	
 	tf::Vector3 origin = transform.getOrigin();
 	
 	//next, we'll publish the odometry message over ROS
 	nav_msgs::Odometry odom;
-	odom.header.stamp = ros::Time::now(); // TODO: Change the time for the correct time, when the images were acquired.
+	odom.header.stamp = last_consumed_time;
 	odom.header.frame_id = "odom";
 	odom.child_frame_id = "omnicam";
 	odom.pose.pose.position.x = origin.x();
