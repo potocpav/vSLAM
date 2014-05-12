@@ -5,12 +5,12 @@ import Numeric.LinearAlgebra
 
 -- | TODO: tie this with the covariance, defined for observations in Measurement.hs
 measurement_cov :: Matrix Double
-measurement_cov = diag (2|> [(0.5 * pi / 180)^^2, (0.5 * pi / 180)^^2])
+measurement_cov = diag (2|> [(2*pi / 1600)^^2, (2*pi / 1600)^^2])
 
 
 -- | TODO: tie this with the covariance, defined for observations in FastSLAM2.hs
 initialCov :: Matrix Double
-initialCov = diag(6|> [0,0,0,(0.5 * pi / 180)^^2,(0.5 * pi / 180)^^2, 1])
+initialCov = diag(6|> [0,0,0,(0.25 * pi / 180)^^2,(0.25 * pi / 180)^^2, 1])
 
 initialRho :: Double
 initialRho = 0.1
