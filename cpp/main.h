@@ -12,10 +12,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-	typedef double tf_t; // I doubt it would work out-of-the-box with another typedef
-	
-	int test(int x);
-	struct Frame *extract_keypoints();
+	typedef double tf_t; // For the c2hs  code, I found this to be necessary.
+
+	struct Frame *extract_keypoints(void);
 	void publish_tf(double *tf);
 	int main_c(char *args);
 	
