@@ -17,7 +17,7 @@ main = do
 	-- Launch ROS
 	launchRos
 	-- Launch the main loop
-	loop $ replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), S.empty)
+	loop $ replicate 20 (ExactCamera (3|> [0,0,0]) (ident 3), S.empty)
 
 
 loop :: [(ExactCamera, Map)] -> IO ()

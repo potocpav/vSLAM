@@ -11,3 +11,4 @@ double rad_to_px_vertical(double y, int height);
 
 Keypoint *keypoints_to_structs(std::vector<cv::KeyPoint> keypoints, cv::Mat descriptors, int w, int h);
 void free_keypoints(int count, Keypoint *kp);
+bool too_small_movement(Keypoint *last, int lastlen);
