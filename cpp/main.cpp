@@ -42,6 +42,12 @@ class RosMain
 	cv::Mat mask;
 	tf::TransformListener tf_listener;
 	
+	bool param_draw_images;
+	bool param_use_rotation, param_use_translation; // use the prior odometry info?
+	std::string param_save_images; // if empty or unspecified, no pictures are saved
+	std::string param_mask;
+	std::string param_out_topic;
+	
 	FILE *log;
 	
 	/// Detect the keypoints in an image.
@@ -81,22 +87,29 @@ class RosMain
 public:
 	RosMain() : it_(nh_)
 	{
+		// ROS params, along with their default values
+		nh_.param("draw_images", param_draw_images, false);
+		nh_.param("use_rotation", param_use_rotation, false);
+		nh_.param("use_translation", param_use_translation, false);
+		nh_.param<std::string>("save_images", param_save_images, "");
+		nh_.param<std::string>("mask", param_mask, "../res/mask_new.png");
+		nh_.param<std::string>("out_topic", param_out_topic, "vslam");
+		
 		// Subscrive to input video feed and publish output video feed
 		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, &RosMain::imageCb, this);
-		g_odom_pub = nh_.advertise<nav_msgs::Odometry>("vslam", 50);
+		g_odom_pub = nh_.advertise<nav_msgs::Odometry>(param_out_topic, 50);
 
-		cv::Mat mask0 = cv::imread("../res/panomask4.png"); // TODO: garbage collection?
+		cv::Mat mask0 = cv::imread(param_mask);
 		cv::cvtColor(mask0, mask, CV_RGB2GRAY);
-
-		cv::namedWindow("Keypoints");
 		
-		log = fopen("/home/pavel/log.txt", "w");
+		if (param_draw_images)
+			cv::namedWindow("Keypoints");
 	}
 
 	~RosMain()
 	{
-		cv::destroyWindow("Keypoints");
-		fclose(log);
+		if (param_draw_images)
+			cv::destroyWindow("Keypoints");
 	}
 
 	// features producer
@@ -122,13 +135,23 @@ public:
 			// Relative transformation from robot kinematics is acquired here.
 			double *mat = frame->tf;
 			try {
-				cout << "time interval: [" << last_t << ", " << now_t << "]\n";
-				tf::StampedTransform transform;
-				// This line is by Vladimir Kubelka, blame him! :D
-				tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
-				
-				transform.getOpenGLMatrix(mat);
-				to_my_coords(mat);
+				if (param_use_rotation || param_use_translation) {
+					tf::StampedTransform transform;
+					// This line is by Vladimir Kubelka, blame him! :D
+					tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
+					transform.getOpenGLMatrix(mat);
+					to_my_coords(mat);
+					
+					if (!param_use_rotation) {
+						mat[0] = mat[5] = mat[10] = 1;
+						mat[1] = mat[2] = mat[3]  = 0;
+						mat[6] = mat[7] = mat[8]  = 0;
+					}
+					if (!param_use_translation) {
+						mat[3] = mat[7] = mat[11] = 0;
+						mat[15] = 1;
+					}
+				}
 			} catch (tf::TransformException ex){
 				ROS_ERROR("TF error: %s",ex.what());
 				// identity
@@ -155,8 +178,11 @@ public:
 	
 			non_maxima_suppression(&(frame->kps), &(frame->num_kps), frame_id);
 			
-			//draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id);
-
+			if (param_draw_images || !param_save_images.empty())
+				draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id, 
+					       param_draw_images, param_save_images);
+			
+			
 			printf("nfeatures: %d\n", frame->num_kps);
 			
 			// Produced another value successfully!
@@ -170,7 +196,7 @@ public:
 		}
 		pthread_mutex_unlock(&frame_mutex);	// release the buffer
 		
-		ROS_INFO("Drawing the output image...");
+		ROS_INFO("Finished acquiring image from ROS.");
 		
 		
 		cv::waitKey(3);
@@ -253,8 +279,9 @@ static void *ros_init (void *arg)
 {		
 	// ROS loop init
 	ros::init(argc, argv, "fastSLAM_2");
+		
 	RosMain ic;
-	
+		
 	printf("Starting the main ROS loop...\n");
 	ros::spin();
 	printf("Exitted the main ROS loop.\n");

@@ -10,7 +10,9 @@
 
 using namespace cv;
 
-void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id) 
+/// Draw an image to a file or to the screen.
+// Overlay the image with the information about keypoints.
+void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id, bool draw_images, std::string directory) 
 {
 	int biw = big_image.cols, bih = big_image.rows;
 	int iw = 1300, ih = (iw * bih) / biw;
@@ -38,8 +40,11 @@ void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id)
 					
 	}
 
-	imshow("Keypoints", image );
-	char tmp[256]; sprintf(tmp, "/home/pavel/Pictures/test/frame_%04d.jpg", frame_id);
-	string str(tmp);
-	imwrite(str, image);
+	if (!directory.empty()) {
+		char tmp[256]; sprintf(tmp, "%s/frame_%04d.jpg", directory.c_str(), frame_id);
+		string str(tmp);
+		imwrite(str, image);
+	}
+	if (draw_images)
+		imshow("Keypoints", image );
 }
