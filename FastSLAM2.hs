@@ -40,7 +40,7 @@ updateCamera :: Double -- min_health
              -> (Double, S.Set Feature, GaussianCamera) 
              -> (Double, S.Set Feature, GaussianCamera)
 updateCamera _ [] x = x
-updateCamera minHealth (lm':ss) (w', fs', gc') = 
+updateCamera minHealth (lm':ss) (w', fs', gc') =
 	case guidedMatch (lm', searchRegion (gc', lm')) fs' of
 	Nothing -> updateCamera minHealth ss (w'*0.2, fs', gc')
 	Just (w,f) -> let
@@ -56,10 +56,13 @@ guidedMatch (lm, g) fs = let
 	f_pos f = (\(a,b) -> 2|> [a,b]) $ fpos f
 	
 	neighbors :: S.Set Feature
-	neighbors =  {- ("neigh " ++ show (lid lm)) ++ show (map dist $ S.toList ff) `debug` -} ff where
-		ff = S.filter (\f -> dist f < 40 && mahalDist_sq g (f_pos f) < 3*3) fs
+	neighbors =  {- unsafePerformIO (putStrLn $ show (fromLID $ lid lm) ++ show (map dist $ S.toList ff)) `seq` -} 
+		filtered where
+		dist_filtered = S.filter (\f -> mahalDist_sq g (f_pos f) < 3*3) fs
+		filtered = S.filter (\f -> dist f < 40) dist_filtered
+		
 
-	-- | Chose at (weighted) random from the chosen candidates
+	-- | If just one feature matches the criteria, associate it
 	updated :: Maybe Feature
 	updated = if S.size neighbors == 1 then Just $ (head $ S.elems neighbors) {flm = Just lm} else Nothing
 	

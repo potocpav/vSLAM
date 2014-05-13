@@ -5,16 +5,22 @@ module Playback where
 import Text.Printf (printf)
 import Numeric.LinearAlgebra
 import Numeric.LinearAlgebra.Util ((&), zeros)
+import System.Directory (doesFileExist)
 
 import Landmark
 import Camera
 import InternalMath
 import Parameters
 
-measurement :: Int -> IO (Double, [Feature], Matrix Double)
+measurement :: Int -> IO (Int, (Double, [Feature], Matrix Double))
 measurement i = do
-	serialized <- readFile (printf "../data/yard4-v2/features_%04d.data" i)
-	return $ read serialized
+	let filename = printf "../data/yard4-v2/features_%04d.data" i
+	exists <- doesFileExist filename
+	if exists then do
+		serialized <- readFile filename
+		return $ (i, read serialized)
+	else measurement (i+1)
+
 
 
 -- | Return the next camera position estimate.
