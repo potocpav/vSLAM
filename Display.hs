@@ -43,14 +43,16 @@ setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
 simfun :: Float -> GameState -> IO GameState
-simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id chist chists ps)) = do
+simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM last_frame_id chist chists ps)) = do
 	Size x y <- get windowSize
 	let 
 		x' = (fromIntegral x) `div` 2
 		y' = (fromIntegral y) `div` 2
 		run = id $ spacePressed input'
 		
-	(dt,meas,tf) <- if run then measurement frame_id else return (undefined, [], undefined)
+	(frame_id, (dt,meas,tf)) <- if run 
+			then measurement (last_frame_id+1) 
+			else return (last_frame_id, (undefined, [], undefined))
 	if run then putStrLn $ "dt for frame " ++ show frame_id ++ ": " ++ show dt else return ()
 	-- | Run the FastSLAM routine
 	ps' <- if not run then return ps else
@@ -63,14 +65,13 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM frame_id
 	
 	let chists' = if run then (map fst ps') : chists else chists
 	let chist' = if run then (averageCams $ map fst ps') : chist else chist
-	let frame_id' = frame_id + if run then 1 else 0
 	
 	when (Just (x',y') /= lastMousePos input') (pointerPosition $= (Position x' y'))
 
 	return $ GameState 
 		(Running (pos + (ts *^ v)) v euler0) 
 		input' { lastMousePos = Just (x',y'), spacePressed = False, xPressed = False }
-		(SLAM (frame_id') chist' chists' ps') where
+		(SLAM frame_id chist' chists' ps') where
 			keyPressed k = Set.member (Char k) (keySet input')
 			v = rotateXyzAboutY (V3 (d-a) (dn-up) (w-s)) yaw where
 					w = if keyPressed 'w' then 10 else 0
@@ -154,7 +155,7 @@ main = do
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 50 [] [] (replicate 10 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 50 [] [] (replicate 1 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads
