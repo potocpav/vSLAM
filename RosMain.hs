@@ -33,6 +33,7 @@ loop particles = do
 	let cam = averageCams (map fst particles)
 	publishTf (camToTF cam)
 	
+	--saveData (id,dt,kps,tf)
 	if id > 0 then print dt else return ()
 	loop particles'
 

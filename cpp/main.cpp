@@ -154,6 +154,8 @@ public:
 			ROS_INFO("Non-maxima suppression...");
 	
 			non_maxima_suppression(&(frame->kps), &(frame->num_kps), frame_id);
+			
+			//draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id);
 
 			printf("nfeatures: %d\n", frame->num_kps);
 			
@@ -170,7 +172,7 @@ public:
 		
 		ROS_INFO("Drawing the output image...");
 		
-		draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id);
+		
 		cv::waitKey(3);
 
 		frame_id++;
