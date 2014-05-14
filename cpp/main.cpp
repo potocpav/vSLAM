@@ -37,6 +37,7 @@ class RosMain
 {
 	/// Private variables
 	ros::NodeHandle nh_;
+	ros::NodeHandle nh_pub_;
 	image_transport::ImageTransport it_;
 	image_transport::Subscriber image_sub_;
 	cv::Mat mask;
@@ -60,7 +61,7 @@ class RosMain
 		int h_cells = 3, v_cells = 1;
 		int w = image.cols, h=image.rows;
 		int margin = 31;
-		ORB *orb = new ORB(1000 / h_cells / v_cells, 1.2, 1);
+		ORB *orb = new ORB(10000 / h_cells / v_cells, 1.2, 1);
 		for (int j = 0; j < v_cells; j++) {
 			for (int i = 0; i < h_cells; i++) {
 				std::vector<KeyPoint> cell_keypoints;
@@ -85,7 +86,8 @@ class RosMain
 	}
 	
 public:
-	RosMain() : it_(nh_)
+
+	RosMain() : nh_("~"), it_(nh_)
 	{
 		// ROS params, along with their default values
 		nh_.param("draw_images", param_draw_images, false);
@@ -97,7 +99,7 @@ public:
 		
 		// Subscrive to input video feed and publish output video feed
 		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, &RosMain::imageCb, this);
-		g_odom_pub = nh_.advertise<nav_msgs::Odometry>(param_out_topic, 50);
+		g_odom_pub = nh_pub_.advertise<nav_msgs::Odometry>(param_out_topic, 50);
 
 		cv::Mat mask0 = cv::imread(param_mask);
 		cv::cvtColor(mask0, mask, CV_RGB2GRAY);

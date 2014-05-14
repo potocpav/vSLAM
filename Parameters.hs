@@ -19,8 +19,7 @@ initialRho = 0.1
 kinematicsPosCov = [0.01, 0.01, 0.03]
 
 -- | local coords y-x'-z'' Tait-Bryan angles per sec.
-kinematicsRotCov = [0.04, 0.01, 0.01]
-
-smallMotionTreshold = 0.01  -- beware: simulation scale may not be well determined.
+kinematicsRotCov = [0.05, 0.01, 0.01]
 
 -- TODO: number of particles
+-- TODO: param prefixes

@@ -15,7 +15,7 @@ using namespace cv;
 void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id, bool draw_images, std::string directory) 
 {
 	int biw = big_image.cols, bih = big_image.rows;
-	int iw = 1300, ih = (iw * bih) / biw;
+	int iw = 1600, ih = (iw * bih) / biw;
 	Mat image;
 	resize(big_image, image, Size(iw, ih), 0, 0);
 	
@@ -24,9 +24,9 @@ void draw_image(Mat big_image, Keypoint *fs, int n, int frame_id, bool draw_imag
 		double px = rad_to_px_horizontal(fs[i].px, image.cols);
 		double py = rad_to_px_vertical(fs[i].py, image.rows);
 		
-		cv::circle(image, Point(px,py), (9*pow(1.2,fs[i].octave)/2)*iw/biw, Scalar(255,0,255), 1);
+		cv::circle(image, Point(px,py), (9*pow(1.2,fs[i].octave)/2)*iw/biw, Scalar(255,0,255), 2);
 		int halfsize = 31*pow(1.2, fs[i].octave)/2 *iw/biw;
-		cv::rectangle(image, Point(px-halfsize, py-halfsize), Point(px+halfsize, py+halfsize), Scalar(255,0,0,128),1);
+		cv::rectangle(image, Point(px-halfsize, py-halfsize), Point(px+halfsize, py+halfsize), Scalar(255,0,0,128),2);
 		
 		std::stringstream ss; ss << fs[i].id;
 		string text = ss.str();
