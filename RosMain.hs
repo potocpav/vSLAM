@@ -25,6 +25,9 @@ loop particles = do
 	(id, dt,kps,tf) <- getFrame
 	
 	putStrLn $ "Processing the acquired frame no. " ++ show id
+	
+	print tf
+	
 	particles' <- (flip runRVar) DevURandom (filterUpdate 
 		 particles
 		 (camTransition dt tf)

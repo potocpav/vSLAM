@@ -143,16 +143,15 @@ public:
 					tf_listener.lookupTransform("/omnicam", last_t, "/omnicam", now_t, "/odom", transform);
 					transform.getOpenGLMatrix(mat);
 					to_my_coords(mat);
-					
-					if (!param_use_rotation) {
-						mat[0] = mat[5] = mat[10] = 1;
-						mat[1] = mat[2] = mat[3]  = 0;
-						mat[6] = mat[7] = mat[8]  = 0;
-					}
-					if (!param_use_translation) {
-						mat[3] = mat[7] = mat[11] = 0;
-						mat[15] = 1;
-					}
+				}					
+				if (!param_use_rotation) {
+					mat[0] = mat[5] = mat[10] = 1;
+					mat[1] = mat[2] = mat[3]  = 0;
+					mat[6] = mat[7] = mat[8]  = 0;
+				}
+				if (!param_use_translation) {
+					mat[3] = mat[7] = mat[11] = 0;
+					mat[15] = 1;
 				}
 			} catch (tf::TransformException ex){
 				ROS_ERROR("TF error: %s",ex.what());

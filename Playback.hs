@@ -32,7 +32,7 @@ camTransition :: Double 			-- ^ delta-time
               -> GaussianCamera		-- ^ Next camera position estimate
 camTransition dt tf cam' = let 
 	prevTf = camToTF cam'
-	nextTf = prevTf -- <> tf
+	nextTf = prevTf <> tf
 	[[ccr, ccp]] = toBlocks [3] [3,1] nextTf
 	
 	[x',y',z'] = toList $ (head.toColumns) ccp
