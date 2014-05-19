@@ -21,7 +21,7 @@ static double cyclic_dist(double s, double t) {
 // 1 is the weakest feature. It is the value, determining the maximum 
 // of the strength responses of both the supplied keypoints.
 static int compare_dists(Keypoint *kp1, Keypoint *kp2, double prominency) {
-	double min_dist_between_lms = 10 * PI / 180 * (1 + prominency*2); // in radians
+	double min_dist_between_lms = 15 * PI / 180 * (1 + prominency*2); // in radians
 	double dsq = cyclic_dist(kp2->px,kp1->px)*cyclic_dist(kp2->px,kp1->px) + (kp2->py-kp1->py)*(kp2->py-kp1->py);
 	return dsq > min_dist_between_lms*min_dist_between_lms;
 }

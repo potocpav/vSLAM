@@ -77,5 +77,6 @@ end:
 	prev = (Keypoint *)malloc(lastlen * sizeof(Keypoint));
 	memcpy(prev, last, lastlen * sizeof(Keypoint)); 
 	prevlen = lastlen;
+	printf("Static features: %f %\n", 100.0 * static_count / lastlen);
 	return static_count > lastlen / 5.0;
 }

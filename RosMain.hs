@@ -25,6 +25,9 @@ loop particles = do
 	(id, dt,kps,tf) <- getFrame
 	
 	putStrLn $ "Processing the acquired frame no. " ++ show id
+	
+	print tf
+	
 	particles' <- (flip runRVar) DevURandom (filterUpdate 
 		 particles
 		 (camTransition dt tf)
@@ -33,6 +36,7 @@ loop particles = do
 	let cam = averageCams (map fst particles)
 	publishTf (camToTF cam)
 	
+	--saveData (id,dt,kps,tf)
 	if id > 0 then print dt else return ()
 	loop particles'
 
