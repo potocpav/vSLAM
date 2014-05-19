@@ -59,9 +59,9 @@ guidedMatch (lm, g) fs = let
 	
 	neighbors :: S.Set Feature
 	neighbors =  {- unsafePerformIO (putStrLn $ show (fromLID $ lid lm) ++ show (map dist $ S.toList ff)) `seq` -} 
-		filtered where
-		dist_filtered = S.filter (\f -> mahalDist_sq g (f_pos f) < 3*3) fs
-		filtered = S.filter (\f -> dist f < 40) dist_filtered
+		mahalFilter . hammingFilter $ fs where
+		mahalFilter = S.filter (\f -> mahalDist_sq g (f_pos f) < 3*3)
+		hammingFilter = S.filter (\f -> dist f < 40)
 		
 
 	-- | If just one feature matches the criteria, associate it
@@ -132,7 +132,7 @@ singleFeatureLandmarkUpdate cam m f = case flm f of
 
 
 mapUpdate :: ExactCamera -> Map -> S.Set Feature -> Map
-mapUpdate cam  m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
+mapUpdate cam  m fs = "No. of total features" `debug` (length (S.toList fs)) `seq` S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
 
 
 filterUpdate :: [(ExactCamera, Map)] 

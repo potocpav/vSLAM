@@ -24,11 +24,11 @@ type Descriptor = BS.ByteString
 
 -- | Inverse-depth 6D-parametrised landmark.
 data Landmark = Landmark 
-		{ lid :: LID
-		, lmu :: Vector Double
-		, lcov :: Matrix Double
-		, ldescriptor :: Descriptor
-		, lhealth :: Double
+		{ lid :: !LID
+		, lmu :: !(Vector Double)
+		, lcov :: !(Matrix Double)
+		, ldescriptor :: !Descriptor
+		, lhealth :: !Double
 		} deriving (Show, Read)
 -- | Landmarks get compared only by their ID.
 instance Eq Landmark where
@@ -41,11 +41,11 @@ instance Ord Landmark where
 -- according to a globally-unique number fid. If it makes a new landmark, it gets
 -- its ID.
 data Feature = Feature 
-		{ fid :: FID				-- ^globally-unique number, useful for sorting in the Set structure, and initializing landmark id
-		, flm :: Maybe Landmark		-- ^if the feature gets associated to a landmark at some point, this is the point to tell the world
-		, fpos :: (Double, Double)	-- ^(theta, phi) pair in radians. (1,0) is positive-z, (0,1) is negative-y in camera coords.
-		, response :: Double		-- ^the bigger, the better corner was detected by Harris.
-		, descriptor :: Descriptor	-- ^Hamming distance is defined between the descriptors pairs.
+		{ fid :: !FID				-- ^globally-unique number, useful for sorting in the Set structure, and initializing landmark id
+		, flm :: !(Maybe Landmark)	-- ^if the feature gets associated to a landmark at some point, this is the point to tell the world
+		, fpos :: !(Double, Double)	-- ^(theta, phi) pair in radians. (1,0) is positive-z, (0,1) is negative-y in camera coords.
+		, response :: !Double		-- ^the bigger, the better corner was detected by Harris.
+		, descriptor :: !Descriptor	-- ^Hamming distance is defined between the descriptors pairs.
 		} deriving (Show, Read)
 instance Eq Feature where
 	a == b = fid a == fid b

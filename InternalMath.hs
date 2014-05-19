@@ -23,7 +23,10 @@ normalDensity (Gauss mu cov) m = norm * exp e where
 	
 -- | Mahalanobis distance
 mahalDist_sq :: Gauss -> Vector Double -> Double
-mahalDist_sq (Gauss mu cov) x = (asRow (x-mu) <> inv cov <> asColumn(x-mu)) @@> (0,0)
+mahalDist_sq (Gauss mu cov) x = (asRow (x-mu) <> inv' cov <> asColumn(x-mu)) @@> (0,0) where
+	inv' cov = (2><2) [invdet * a22, -invdet * a12, -invdet * a21, invdet * a11]
+	invdet = 1 / (a11*a22 - a12*a21)
+	(a11, a12, a21, a22) = (cov @@> (0,0), cov @@> (0,1), cov @@> (1,0), cov @@> (1,1))
 	
 
 -- | Un-normalized 3-vec parametrization to azimuth-elevation pair
