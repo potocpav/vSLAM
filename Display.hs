@@ -1,4 +1,14 @@
 {-# OPTIONS_GHC -Wall #-}
+{-|
+Module      : Display
+License     : WTFPL
+Maintainer  : Pavel Potocek <pavelpotocek@gmail.com>
+
+This module provides a 3D simulation environment for the FastSLAM2 routine.
+
+It simulates over the data supplied by the 'Playback' module. It has got a 
+'main' function and is standalone (separate from the 'RosMain' module).
+-}
 
 -- module Main ( main ) where
 
@@ -19,19 +29,29 @@ import Camera
 import Playback --import Simulate
 import FastSLAM2
 
+import System.CPUTime
+import Text.Printf
+
 ts :: Double
 ts = 0.01
 
-
 data ObserverState = Running (V3 Double) (V3 Double) (Euler Double)
 data InputState = Input { keySet :: Set.Set Key, lastMousePos :: Maybe (GLint, GLint), spacePressed :: Bool, xPressed :: Bool }
--- | The true camera position sequence, measurement history, and a particle set.
-data SLAMState = SLAM { frameId :: Int, camHistory :: [ExactCamera], camHistories :: [[ExactCamera]], particles :: [(ExactCamera, Map)] }
 
+-- | The complete state updated by the FastSLAM2 routine
+data SLAMState = SLAM 
+	{ frameId :: Int
+	, camHistory :: [ExactCamera]       -- ^Averaged camera history
+	, camHistories :: [[ExactCamera]]   -- ^Per-particle camera histories
+	, particles :: [(ExactCamera, Map)]
+	}
+
+-- | The complete simulation state.
 data GameState = GameState { observer :: ObserverState
                            , input :: InputState
                            , slam :: SLAMState 
                            }
+              
 
 toVertex :: (Real a, Fractional b) => V3 a -> Vertex3 b
 toVertex xyz = (\(V3 x y z) -> Vertex3 x y z) $ fmap realToFrac xyz
@@ -42,6 +62,8 @@ setCamera (Running (V3 x y z) _ euler) = lookAt (toVertex xyz0) (toVertex target
 		xyz0 = V3 x y z
 		target = xyz0 + rotateXyzAboutY (rotateXyzAboutX (rotVecByEulerB2A euler (V3 1 0 0)) (-pi/2)) (-pi/2)
 
+
+-- | The main state update routine.
 simfun :: Float -> GameState -> IO GameState
 simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM last_frame_id chist chists ps)) = do
 	Size x y <- get windowSize
@@ -54,7 +76,8 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM last_fra
 			then measurement (last_frame_id+1) 
 			else return (last_frame_id, (undefined, [], undefined))
 	if run then putStrLn $ "dt for frame " ++ show frame_id ++ ": " ++ show dt else return ()
-	-- | Run the FastSLAM routine
+	 
+	-- | Run the FastSLAM routine.
 	ps' <- if not run then return ps else
 		(flip runRVar) DevURandom $ filterUpdate
 				ps
@@ -80,6 +103,7 @@ simfun _ (GameState (Running pos _ euler0@(Euler yaw _ _)) input' (SLAM last_fra
 					d = if keyPressed 's' then 10 else 0
 					up = if keyPressed 'p' then 10 else 0
 					dn = if keyPressed 't' then 10 else 0
+
 
 printBestLandmarks :: Map -> Int -> IO ()
 printBestLandmarks m frame_id = 
@@ -112,6 +136,8 @@ motionCallback _ state0@(GameState (Running pos v (Euler yaw0 pitch0 _)) input' 
 			| otherwise  = val
     
 
+-- | The main drawing routine. It converts a 'GameState' into a 'VisObject',
+-- which is displayed on the screen by the not-gloss package.
 drawfun :: GameState -> VisObject Double
 drawfun (GameState (Running camPos _ _) _ (SLAM frame_id chist chists ps)) = VisObjects $ 
 	[drawMap . snd $ head ps]
@@ -122,22 +148,31 @@ drawfun (GameState (Running camPos _ _) _ (SLAM frame_id chist chists ps)) = Vis
 	-- ++ map drawTrueLandmark trueMap
 	-- ++ zipWith drawLandmark [1..] (if null ps then [] else Set.toList $ mergeMapsMAP ps)
 	
-   
+
+-- | Draw the grid and the axes to give a visual clue of positions and depths.
+-- The grid automatically moves with the camera steps.
 drawBackground :: V3 Double -> VisObject Double
 drawBackground (V3 x _ z) = VisObjects [Axes (1, 25), Trans (V3 x' 0 z') $ Plane (V3 0 1 0) (makeColor 0.5 0.5 0.5 1) (makeColor 0 0 0 0)]
 	where 
 	(x',z') = (roundToTwos x, roundToTwos z)
 	roundToTwos v = 2*(fromIntegral $ (round (v/2) :: Int))
 
--- | Takes the seed as an argument.
+
+-- | Draw a landmark as a particle set. The first argument is a seed. That way
+-- this function does not have to be in the IO monad.
 drawLandmark :: Int -> Landmark -> VisObject Double
 drawLandmark seed l = Points (map vec2v3 (take 10 $ samples l seed)) (Just 3) (makeColor 1 1 1 1) where
 	vec2v3 v = V3 (v@>0) (v@>1) (v@>2)
 
+
+-- | Draw a whole bunch of landmarks. Draw only those with sufficient health
+-- to avoid clutter.
 drawMap :: Map -> VisObject Double
 drawMap m = VisObjects $ map (drawLandmark 1) (filter (\l -> lhealth l > 1.5) $ Set.toList m)
 
--- | Draw a camera with a pre-set weight
+
+-- | Draw a camera along with its trajectory with a pre-set size of the 
+-- camera mesh.
 drawCamTrajectory :: Double -> [ExactCamera] -> VisObject Double
 drawCamTrajectory _ [] = VisObjects []
 drawCamTrajectory w (ExactCamera cp cr:cs) = VisObjects $
@@ -148,14 +183,14 @@ drawCamTrajectory w (ExactCamera cp cr:cs) = VisObjects $
 					, Line [V3 0 0 0, v2V $ cr <> (3|> [0,0,0.2])] (makeColor 1 0 0 1) ]
 			v2V v = V3 (v@>0) (v@>1) (v@>2)
 
-	
+
 main :: IO ()
 main = do
 	let
 		state0 = GameState 
 				(Running (V3 (-10) (-7) (-5)) 0 (Euler 1 (-0.6) 0)) 
 				(Input (Set.empty) Nothing False False)
-				(SLAM 20 [] [] (replicate 50 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
+				(SLAM 50 [] [] (replicate 20 (ExactCamera (3|> [0,0,0]) (ident 3), Set.empty) ))
 		setCam (GameState x _ _) = setCamera x
 		drawfun' x = return (drawfun x, Just None)
 	_ <- initThreads

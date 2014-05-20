@@ -1,3 +1,11 @@
+{-|
+Module      : Camera
+License     : WTFPL
+Maintainer  : Pavel Potocek <pavelpotocek@gmail.com>
+
+This package provides the 'ExactCamera' and 'GaussianCamera' data types together
+with some functions manipulating the cameras..
+-}
 
 module TestMeasurement where
 
@@ -15,6 +23,7 @@ a ~= b = abs (a-b) < 10^^(-12) -- ^ equality test for doubles
 a ~~= b = (isNaN a && isNaN b) || abs (a-b) < 10^^(-5) -- ^ decreased precision test for doubles
 infix 4 ~=, ~~=
 
+
 -- | Z1,Y2,Z3-type euler angles
 euler2matrix (a,b,c) = (3><3)
 	[ c1*c2*c3 -s1*s3, -c3*s1 -c1*c2*s3, c1*s2
@@ -22,20 +31,25 @@ euler2matrix (a,b,c) = (3><3)
 	,          -c3*s2,            s2*s3,    c2 ] where
 	c1 = cos a; c2 = cos b; c3 = cos c; s1 = sin a; s2 = sin b; s3 = sin c
 	
+	
 deepCheck = quickCheckWith stdArgs {maxSuccess = 10000}
+
 
 --------------------------------------------------------------------------------
 -- Real tests follow
+
 
 -- | vec2euler . euler2vec == id
 test_e2v = quickCheck ((\s -> (euler2vec.vec2euler.euler2vec) s ~= euler2vec s) :: (Double, Double) -> Bool)
 
 
--- | Testing derivative of measurement equation by derivative definition.
+-- | Testing the derivative of the measurement equation ( == jacobian)
+-- by the definition of a derivative.
 -- This test sometimes fails, but this is hopefully due to precision issues.
 -- There are some degenerate configurations, that can cause precision loss.
--- The evidence for this is, that by increasing the error tolerance, the failure
--- rate decreases, in a seemingly smooth fashion.
+-- The evidence for this is that by increasing the error tolerance, the failure
+-- rate decreases in a seemingly smooth fashion. Also, all the failures
+-- recorded were near an expected degeneracy (pi/2 elevation angle etc).
 type Triplet = (Double, Double, Double)
 type Hexplet = (Triplet, Triplet)
 test_jacobian_l = deepCheck f where
@@ -58,6 +72,8 @@ test_jacobian_l = deepCheck f where
 		-- | The jacobian, computed by derivative definition from measurement equation
 		[j1',j2'] = (\(a,b) (c,d) -> [(a-c)/diff,(b-d)/diff]) 
 		            (measure cam (feature+scale diff dfeature)) (measure cam feature)
+			 
+			 
 			 
 -- | Analogous to the test_jacobian_l function.
 test_jacobian_c = deepCheck f where
@@ -99,7 +115,9 @@ test_jacobian_c = deepCheck f where
 		[j1',j2'] = (\(a,b) (c,d) -> [(a-c)/diff,(b-d)/diff]) 
 			(measure (ecam $ camera+scale diff dcamera) feature) (measure (ecam camera) feature)
 		
--- | Test, if the measurement of the inverse measurement is identity.
+		
+		
+-- | Test if the measurement of the inverse measurement is identity.
 -- Inverse measurement is in this context 'landmark initialization'.
 test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 	f :: (Hexplet, (Double, Double)) -> Bool
@@ -110,15 +128,18 @@ test_initialize = quickCheckWith stdArgs {maxSuccess = 10000} f where
 		
 		f_mu = lmu $ initialize cam (Feature undefined undefined angles undefined undefined)
 		(a', b') = normalize $ measure cam f_mu
-		
---------------------------------------------------------------------------------
 
+
+
+-- | Tait-Bryan angles -> Rotational matrix -> Tait-Bryan angles invariant test
 test_ea_rot = quickCheckWith stdArgs {maxSuccess = 10000} f where
 	f :: Triplet -> Bool
 	f (a,b,g) = m `mateq` (euler2rotmat . rotmat2euler $ m) where
 		m = euler2rotmat (3|> [a,b,g])
 		m1 `mateq` m2 = pnorm PNorm1 (abs (m2-m1)) <= 10^^(-12)
 
+
+-- | Everything at Once
 main = do
 	test_e2v
 	test_jacobian_l

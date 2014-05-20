@@ -1,5 +1,11 @@
--- Get the input data from Serialized files.
+{-|
+Module      : Playback
+License     : WTFPL
+Maintainer  : Pavel Potocek <pavelpotocek@gmail.com>
 
+Get the input data from serialized files. Construct a transition function to be
+used in the 'updateFilter' routine.
+-}
 module Playback where
 
 import Text.Printf (printf)
@@ -12,6 +18,9 @@ import Camera
 import InternalMath
 import Parameters
 
+
+-- | Acquire a measurement (containing multiple features) from a serialized file.
+-- The serialization format is defined by the Prelude show and read functions.
 measurement :: Int -> IO (Int, (Double, [Feature], Matrix Double))
 measurement i = do
 	let filename = printf "../data/yard4-v2/features_%04d.data" i
@@ -24,12 +33,13 @@ measurement i = do
 
 
 -- | Return the next camera position estimate.
--- Note, that this function is typically partially applied, returning
--- ExactCamera -> GaussianCamera, passed to the FastSLAM routine.
-camTransition :: Double 			-- ^ delta-time
-              -> Matrix Double 		-- ^ 4x4 transformation matrix from odometry
+-- Note that when this function is partially applied it returns a function
+-- ExactCamera -> GaussianCamera, which can be passed to the FastSLAM update
+-- routine.
+camTransition :: Double 			-- ^ delta time
+              -> Matrix Double 		-- ^ 4x4 OpenGL-like transformation matrix from odometry
               -> ExactCamera 		-- ^ Previous camera pose
-              -> GaussianCamera		-- ^ Next camera position estimate
+              -> GaussianCamera		-- ^ Next camera pose estimate
 camTransition dt tf cam' = let 
 	prevTf = camToTF cam'
 	nextTf = prevTf <> tf
@@ -42,8 +52,3 @@ camTransition dt tf cam' = let
 	rotCov = diag $ scale dt $ 3|> kinematicsRotCov
 	in GaussianCamera (6|> [x',y',z',a',b',g']) (diagBlock [posCov, rotCov])
 
--- | Compute the velocity from the most recent camera estimates.
-camVelocity :: [ExactCamera] -> Vector Double
-camVelocity [ExactCamera cp1 _, ExactCamera cp2 _] =
-	(cp1 - cp2) & (3|> repeat 0)
-camVelocity _ = 6|> repeat 0

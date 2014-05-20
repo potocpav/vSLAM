@@ -1,4 +1,15 @@
 {-# OPTIONS -Wall #-}
+{-|
+Module      : FastSLAM2
+License     : WTFPL
+Maintainer  : Pavel Potocek <pavelpotocek@gmail.com>
+
+This package is an implementation of the FastSLAM 2.0 routine.
+
+For it to work properly, the camera needs not to be stationary for a prolonged
+period of time. Consider implementing the code for the detection of a stationary
+camera and drop any excess frames.
+-}
 
 module FastSLAM2 where
 
@@ -17,7 +28,8 @@ import InternalMath
 import Parameters
 
 
--- | Return 2D gaussian of search coordinates in projective space (theta, phi)
+-- | Return a 2D gaussian of the feature search region in a projective space 
+-- (azimuth, elevation)
 searchRegion :: (GaussianCamera, Landmark) -> Gauss
 searchRegion (gcam, lm) = Gauss mu' cov' where
 	ecam = gauss2exact gcam
@@ -28,13 +40,17 @@ searchRegion (gcam, lm) = Gauss mu' cov' where
 	cov' = jc <> (ccov gcam) <> trans jc + jl <> (lcov lm) <> trans jl + measurement_cov
 	
 	
--- | Delete the landmarks with insufficient health
+-- | Delete any landmarks with insufficient health
 pruneLandmarks :: Map -> Map
 pruneLandmarks ms = S.map fade $ S.filter (\l -> lhealth l > 0) ms where
 	fade lm = lm { lhealth = lhealth lm - 1 }
 	
 
--- | TODO: comment the revamped routine here, along with its parameters.
+-- | Perform the guided matching routine and the camera EKF update. These two
+-- are interleaved. Every landmark is matched with the feature set. If the match 
+-- is successful, the association is saved into the 'Feature' structure and the
+-- camera is EKF updated. The routine returns the updated set and camera.
+-- It works recursively until there are no more Landmarks to be processed.
 updateCamera :: Double -- min_health
              -> [Landmark] 
              -> (Double, S.Set Feature, GaussianCamera) 
@@ -51,6 +67,8 @@ updateCamera minHealth (lm':ss) (w', fs', gc') =
 			else updateCamera minHealth ss (w', fs, gc')
 	
 
+-- | Check the search region for a corresponding feature. If found, return
+-- the update weight and an updated 'Feature' with the association saved.
 guidedMatch :: (Landmark, Gauss) -> S.Set Feature -> Maybe (Double, Feature)
 guidedMatch (lm, g) fs = let
 	f_pos f = (\(a,b) -> 2|> [a,b]) $ fpos f
@@ -80,6 +98,8 @@ cameraSample (GaussianCamera mu cov) = do
 	return $ ExactCamera (3|> [cx,cy,cz]) (euler2rotmat (3|> [a,b,g]))
 
 
+-- | Perform a standard resampling routine. The Double argument is the particle
+-- weight. The particles are sampled in proportion to it.
 camerasSample :: [(Double, (GaussianCamera, Map, S.Set Feature))] -> RVar [(ExactCamera, Map, S.Set Feature)]
 camerasSample ps = sequence $ replicate (length ps) 
 		(particleSample =<< weightedCategorical ps) where
@@ -88,10 +108,11 @@ camerasSample ps = sequence $ replicate (length ps)
 		return (c',m,f)
 
 
--- | Implemented according to the original FastSLAM 2.0 paper.
+-- | An EKF camera updated. Implemented according to the original FastSLAM 2.0 
+-- paper.
 singleFeatureCameraUpdate 
 			:: GaussianCamera 
-			-> Feature 			-- ^ Must have an associated landmark, otherwise throws an exception
+			-> Feature 			-- ^ Must have an associated landmark, otherwise throw an exception
 			-> GaussianCamera
 singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = let
 	landmark = fromJust (flm feature)
@@ -111,6 +132,9 @@ singleFeatureCameraUpdate (gcam@(GaussianCamera mu_c cov_c)) feature = let
 	in GaussianCamera mu_c' cov_c'
 	
 
+-- | An EKF 'Landmark' update. Implemented according to the original 
+-- FastSLAM 2.0 paper. If the feature is not associated to anything, a new
+-- 'Landmark' is initialized and inserted into the 'Map'.
 singleFeatureLandmarkUpdate :: ExactCamera -> Map -> Feature -> Map
 singleFeatureLandmarkUpdate cam m f = case flm f of 
 	Nothing -> S.insert (initialize cam f) m
@@ -129,14 +153,19 @@ singleFeatureLandmarkUpdate cam m f = case flm f of
 		in S.insert (Landmark id_l mu' cov' (descriptor f) (health+(20-health)/10)) m
 
 
+-- | An EKF 'Map' update routine. It just updates all the features in the 
+-- feature set sequentially.
 mapUpdate :: ExactCamera -> Map -> S.Set Feature -> Map
-mapUpdate cam  m fs = "No. of total features" `debug` (length (S.toList fs)) `seq` S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
+mapUpdate cam  m fs = S.fold (flip $ singleFeatureLandmarkUpdate cam) m fs
 
 
-filterUpdate :: [(ExactCamera, Map)] 
-             -> (ExactCamera -> GaussianCamera) 
-             -> [Feature] 
-             -> RVar [(ExactCamera, Map)]
+-- | The main FastSLAM 2.0 update routine. It takes the state from the previous
+-- time step and returns the state in the next time step.
+-- It is inside the RVar monad, because it contains random processes.
+filterUpdate :: [(ExactCamera, Map)]            -- ^ prior state
+             -> (ExactCamera -> GaussianCamera) -- ^ transition function
+             -> [Feature]                       -- ^ newly observed features
+             -> RVar [(ExactCamera, Map)]       -- ^ output state
 filterUpdate input_state camTransition features = do 
 	let
 		feature_set = S.fromList features
