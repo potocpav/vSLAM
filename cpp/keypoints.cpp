@@ -3,6 +3,10 @@
 
 #include <stdio.h>
 
+/// The pixel-to-radian and reverse conversion functions.
+// They work with a spherical azimuth-elevation projection. If the projection is
+// changed, they need to be updated.
+
 double px_to_rad_horizontal(double x, int width) {
 	return (x / (width-1) - 0.5) * 2*PI;
 }
@@ -18,6 +22,7 @@ double rad_to_px_horizontal(double x, int width) {
 double rad_to_px_vertical(double y, int height) {
 	return (-y / PI + 0.5) * (height-1);
 }
+
 
 Keypoint *keypoints_to_structs(std::vector<cv::KeyPoint> keypoints, cv::Mat descriptors, int w, int h)
 {
@@ -50,8 +55,10 @@ void free_keypoints(int count, Keypoint *kp)
 	}
 }
 
+/// Is the number of features that changed its position too low?
 // This one is copying the whole '*last' array, and keeping it for one
-// iteration as a static variable.
+// iteration as a static variable. This way, only the most recent observation
+// must be supplied as an argument.
 bool too_small_movement(Keypoint *last, int lastlen)
 {
 	static Keypoint *prev = NULL;
