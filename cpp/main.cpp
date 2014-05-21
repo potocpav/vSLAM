@@ -27,10 +27,11 @@ using namespace std;
 pthread_mutex_t frame_mutex;
 pthread_cond_t cond_consumer, cond_producer;
 
+// Those variables are protected by the mutex above
 Frame *frame, *persistent_frame;
 ros::Time last_consumed_time, last_produced_time;
-
 int killed = 0;
+
 ros::Publisher g_odom_pub;
 
 class RosMain
@@ -43,18 +44,22 @@ class RosMain
 	cv::Mat mask;
 	tf::TransformListener tf_listener;
 	
+	
+	// ROS parameters
 	bool param_draw_images;
 	bool param_use_rotation, param_use_translation; // use the prior odometry info?
 	std::string param_save_images; // if empty or unspecified, no pictures are saved
 	std::string param_mask;
 	std::string param_out_topic;
 	
-	FILE *log;
 	
 	/// Detect the keypoints in an image.
 	// This routine (optionally) splits the image processing into cells.
-	// If it is not done this way, only features from one direction
-	// may be generated.
+	// If ORB produces more features than maximum, it throws away the ones with
+	// a small response. If ORB works over the whole image, it may throw the
+	// features out only from one direction. The cells make this more even.
+	// Probably, the max of the ORB generating function could just be set to 
+	// something really high instead.
 	// uses the 'mask' private class variable
 	void detect_keypoints(Mat image, vector<KeyPoint> *keypoints, Mat *descriptors, int *count)
 	{
@@ -97,7 +102,7 @@ public:
 		nh_.param<std::string>("mask", param_mask, "../res/mask_new.png");
 		nh_.param<std::string>("out_topic", param_out_topic, "vslam");
 		
-		// Subscrive to input video feed and publish output video feed
+		// Subscrive to input video feed and publish output odometry feed
 		image_sub_ = it_.subscribe("/viz/pano_vodom/image", 1, &RosMain::imageCb, this);
 		g_odom_pub = nh_pub_.advertise<nav_msgs::Odometry>(param_out_topic, 50);
 
@@ -114,7 +119,11 @@ public:
 			cv::destroyWindow("Keypoints");
 	}
 
-	// features producer
+	/// The features producer.
+	// Get the features from the ROS image, process them (including NMS),
+	// construct the Frame structure and save it to the *frame global variable.
+	// Then, signal that the value was produced so that the consumer can eat it
+	// up.
 	void imageCb(const sensor_msgs::ImageConstPtr& msg)
 	{
 		ROS_INFO("Acquired an image.");
@@ -162,11 +171,12 @@ public:
 				mat[11] = mat[12] = mat[13] = mat[14] = 0;
 			}
 		
+			// Free the old keypoints
 			free_keypoints(frame->num_kps, frame->kps);
 
 			ROS_INFO("Computing ORB features...");
 
-			// Create some features
+			// Create new keypoints
 			vector<KeyPoint> keypoints;
 			Mat descriptors;
 			detect_keypoints(cv_ptr->image, &keypoints, &descriptors, &(frame->num_kps));
@@ -179,6 +189,7 @@ public:
 	
 			non_maxima_suppression(&(frame->kps), &(frame->num_kps), frame_id);
 			
+			// Optionally draw and save the images
 			if (param_draw_images || !param_save_images.empty())
 				draw_image(cv_ptr->image, frame->kps, frame->num_kps, frame_id, 
 					       param_draw_images, param_save_images);
@@ -197,9 +208,9 @@ public:
 		}
 		pthread_mutex_unlock(&frame_mutex);	// release the buffer
 		
-		ROS_INFO("Finished acquiring image from ROS.");
+		ROS_INFO("Finished acquiring the image from ROS.");
 		
-		
+		// Let the cv library perform its stuff.
 		cv::waitKey(3);
 
 		frame_id++;
@@ -207,9 +218,11 @@ public:
 };
 
 
-// *features consumer
-// waits for the next image if it was called too quickly; takes the current 
-// image, if called too late.
+/// The *frame consumer.
+// Gets called from the Haskell code. Synchronously acquires the latest *frame.
+// The produced stuff is saved in the *persistent_frame global and is freed
+// on the next frame. That way, it is not deallocated while read by the 
+// Haskell FFI.
 Frame *extract_keypoints()
 {	
 	
@@ -249,6 +262,8 @@ Frame *extract_keypoints()
 	return ret;
 }
 
+
+/// Publish the resulting transformation. Called by the Haskell code.
 void publish_tf(double *tf) 
 {	
 	ROS_INFO("Publishing the transformation...");
@@ -276,6 +291,7 @@ void publish_tf(double *tf)
 int argc = 0;
 char **argv;
 
+/// The thread that is spawned by main_c to initialize and spin ROS.
 static void *ros_init (void *arg)
 {		
 	// ROS loop init
@@ -295,6 +311,8 @@ static void *ros_init (void *arg)
 	return 0;
 }
 
+
+/// The entry point to our library. Starts the ROS main loop and exits.
 int main_c(char *args) {
 	frame = (Frame *)malloc(sizeof(Frame));
 	// Arguments parsing

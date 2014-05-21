@@ -1,6 +1,5 @@
 
 #include <opencv2/highgui/highgui.hpp>
-// #include <opencv2/features2d/features2d.hpp>
 
 #include <sstream>
 #include <stdio.h>
@@ -9,6 +8,7 @@
 #include "keypoints.h"
 
 using namespace cv;
+
 
 /// Draw an image to a file or to the screen.
 // Overlay the image with the information about keypoints.
