@@ -12,6 +12,7 @@ module Parameters where
 
 import Numeric.LinearAlgebra
 
+numberOfParticles :: Int
 numberOfParticles = 20
 
 angular_cov = (2*pi / 1600)^^2 -- a pixel squared

@@ -28,7 +28,7 @@ measurement i = do
 	if exists then do
 		serialized <- readFile filename
 		return $ (i, read serialized)
-	else measurement (i+1)
+	 else measurement (i+1)
 
 
 

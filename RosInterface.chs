@@ -11,7 +11,6 @@ import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import qualified Data.ByteString as B
--- import Foreign.Marshal.Array
 
 import Landmark
 
